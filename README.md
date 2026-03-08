@@ -19,6 +19,9 @@ Operators monitor the Switch orderbook for signed limit orders and fill them on-
 7. [Filling an Order](#filling-an-order)
 8. [Profit Strategies & `excessOnInput`](#profit-strategies--excessoninput)
 9. [Tax Token Handling](#tax-token-handling)
+   - [First-Hop Adapter Restriction](#first-hop-adapter-restriction-for-sell-tax-inputs)
+   - [Last-Hop Adapter Restriction](#last-hop-adapter-restriction-for-buy-tax-outputs)
+   - [Route Amount Scaling](#route-amount-scaling-for-sell-tax-input-feeoutputtrue)
 10. [On-Chain Structs](#on-chain-structs)
 11. [Revert Errors](#revert-errors)
 12. [Reference](#reference)
@@ -57,7 +60,7 @@ The contract enforces `minAmountOut` for the maker — everything above that is 
 │  ├── Polls GET /limit-orders for active orders                                   │
 │  ├── Evaluates profitability                                                     │
 │  ├── Route Fill: fillOrder(order, signature, routes, excessOnInput)              │
-│  └── Direct Fill: directFillOrder(order, signature, outputAmount)               │
+│  └── Direct Fill: directFillOrder(order, signature, outputAmount, directToMaker) │
 ├──────────────────────────────────────────────────────────────────────────────────┤
 │  ON-CHAIN CONTRACTS                                                              │
 │  ├── SwitchLimitOrder — verifies signature, enforces minAmountOut, distributes   │
@@ -69,9 +72,11 @@ The contract enforces `minAmountOut` for the maker — everything above that is 
 
 ## Contract Addresses
 
+> **⚠️ Do not hardcode the SwitchRouter address.** The router contract may be redeployed from time to time. When executing swaps (via `fillOrder` or `directFillOrder`), always use the `tx.to` address returned by the `/bestPath` API response. This ensures your operator bot automatically picks up router upgrades without code changes.
+
 | Contract | Address |
 |---|---|
-| **SwitchRouter** | `0x31077B259e7fEEB7bE39bF298274BaE94Ee57B7a` |
+| **SwitchRouter** | `0x99999d19eC98F936934e029e63D1C0A127a15207` |
 | **SwitchLimitOrder** | `0x28754379e9E9867A64b77437930cBc5009939692` |
 | **SwitchPLSFlow** | `0x0fD3fD40F06159606165F21047B83136172273E3` |
 
@@ -188,7 +193,9 @@ Orders where `maker == 0x0fD3fD40F06159606165F21047B83136172273E3` are PLSFlow o
 1. Quote the pair through your own routing (Switch does **not** provide a routing API — this is where your competitive edge comes from)
 2. Account for protocol fee (currently 30 bps, via `getFee()`)
 3. Account for tax tokens if applicable (see [Tax Token Handling](#tax-token-handling))
-4. Ensure profit > gas cost
+4. **If input has sell tax**, first hop must use V2 adapters only (see [First-Hop Adapter Restriction](#first-hop-adapter-restriction-for-sell-tax-inputs))
+5. **If output has buy tax**, last hop must use V2 adapters only (see [Last-Hop Adapter Restriction](#last-hop-adapter-restriction-for-buy-tax-outputs))
+5. Ensure profit > gas cost
 
 ---
 
@@ -217,11 +224,14 @@ You provide output tokens yourself and receive the maker's input tokens. No rout
 function directFillOrder(
     LimitOrder calldata order,
     bytes calldata signature,
-    uint256 outputAmount
+    uint256 outputAmount,
+    bool directToMaker
 ) external;
 ```
 
-`outputAmount` must be ≥ `minAmountOut`. For `feeOnOutput=true` orders, include fee: `outputAmount = minAmountOut × 10000 / (10000 - fee)`. For tax output tokens, oversend to cover transfer tax. Works with both `feeOnOutput` modes transparently.
+`outputAmount` must be ≥ `minAmountOut`. For `feeOnOutput=true` orders, include fee: `outputAmount = minAmountOut × 10000 / (10000 - fee)`. For tax output tokens with `directToMaker=false`, oversend to cover transfer tax. Works with both `feeOnOutput` modes transparently.
+
+**`directToMaker`** — When `true` and the order has `feeOnOutput=false` and `unwrapOutput=false`, the output is transferred directly from the filler to the recipient in a **single transfer** instead of the usual filler → contract → recipient (2 transfers). This saves one buy tax hit for tax output tokens. Silently ignored when `feeOnOutput=true` (output needs fee deduction at the contract) or `unwrapOutput=true` (output needs unwrapping). For non-tax tokens, pass `false` — both paths behave identically.
 
 Your profit = value of input received − value of output sent − gas.
 
@@ -296,9 +306,14 @@ if (order.feeOnOutput) {
   outputAmount = (order.minAmountOut * 10000n) / (10000n - fee);
 }
 
+// Use directToMaker=true for tax output tokens with feeOnOutput=false
+// This sends output filler → recipient directly (1 transfer, 1 tax hit)
+const directToMaker = !order.feeOnOutput && !order.unwrapOutput
+  && apiOrder.tokenOutBuyTaxBps > 0;
+
 // Simulate, then send
-await contract.directFillOrder.staticCall(order, apiOrder.signature, outputAmount);
-const tx = await contract.directFillOrder(order, apiOrder.signature, outputAmount);
+await contract.directFillOrder.staticCall(order, apiOrder.signature, outputAmount, directToMaker);
+const tx = await contract.directFillOrder(order, apiOrder.signature, outputAmount, directToMaker);
 await tx.wait();
 ```
 
@@ -405,12 +420,19 @@ tokenOut: pool → LO contract (1 buy tax) → maker (2nd buy tax!)
 
 > **Route scaling required:** The sell tax is applied during the `goSwitchFrom` transfer, so the pool receives less than the route's `amountIn`. If tokenIn has a sell tax, route amounts must be **pre-tax** values. See [Route Amount Scaling](#route-amount-scaling-for-sell-tax-input-feeoutputtrue) below.
 
-**Direct fill (both modes):**
+**Direct fill, `directToMaker=false` (default):**
 ```
 tokenIn: maker → LO contract (1 sell tax) → filler (1 buy tax)
 tokenOut: filler → LO contract (1 sell tax) → maker (1 buy tax)
 ```
-For tax output tokens on direct fill, oversend so the contract receives ≥ `minAmountOut` + fee after tax.
+For tax output tokens, oversend so the contract receives ≥ `minAmountOut` + fee after tax.
+
+**Direct fill, `directToMaker=true` (`feeOnOutput=false` only):**
+```
+tokenIn: maker → LO contract (1 sell tax) → filler (1 buy tax)
+tokenOut: filler → maker directly (1 buy tax)  ← saves 1 tax hit!
+```
+Output goes directly from filler to the recipient in a single transfer, avoiding the sell tax from the intermediate filler → contract hop. Only works when `feeOnOutput=false` and `unwrapOutput=false`.
 
 ### Tax Token Decision Matrix
 
@@ -421,11 +443,150 @@ For tax output tokens on direct fill, oversend so the contract receives ≥ `min
 | Both taxed | Order unlikely | Frontend blocks this |
 | Neither taxed | `false` (default) | Maximum operator flexibility |
 
+### `directToMaker` Decision (Direct Fills Only)
+
+| `feeOnOutput` | `unwrapOutput` | Output taxed? | Use `directToMaker` | Why |
+|---|---|---|---|---|
+| `false` | `false` | Yes | **`true`** | Saves 1 buy tax (1 transfer vs 2) |
+| `false` | `false` | No | `false` | No benefit — both paths identical |
+| `false` | `true` | — | `false` (ignored) | Output needs unwrapping at contract |
+| `true` | — | — | `false` (ignored) | Output needs fee deduction at contract |
+
+```ts
+function shouldDirectToMaker(order: LimitOrder, tokenOutBuyTaxBps: number): boolean {
+  return !order.feeOnOutput && !order.unwrapOutput && tokenOutBuyTaxBps > 0;
+}
+```
+
 ### Profit Adjustments
 
 1. **Input sell tax** → available routing input = `amountIn × (10000 - sellTaxBps) / 10000`
 2. **Output buy tax** → ensure `outputAfterTax ≥ minAmountOut`
 3. **Choose profit token wisely** — prefer `excessOnInput=true` when output is taxed, `false` when input is taxed
+
+### First-Hop Adapter Restriction for Sell-Tax Inputs
+
+> **Critical.** Using the wrong adapter type on the first hop causes `IIA` (Insufficient Input Amount) reverts from V3 pools.
+
+When `tokenInSellTaxBps > 0`, the **first hop** of your route **must** use a UniswapV2-style adapter (e.g. PulseXV2, SushiV2, 9inchV2). Do **not** use V3, Phux, Tide, or PulseXStable adapters for the first hop.
+
+**Why:** UniswapV3 pools use a callback payment model. During `pool.swap()`, the pool calls back to the adapter, which then transfers tokens from the router to the pool. This creates **two transfers** — router → adapter → pool — and the sell tax is applied on **each transfer**, so the pool receives far less than expected and reverts with "IIA".
+
+UniswapV2-style adapters work differently: tokens are transferred to the pair first, and the adapter measures `balanceOf(pair) - reserves` to determine the actual received amount. This correctly handles tax tokens with only one tax hit.
+
+**Subsequent hops are unrestricted.** After the first hop, intermediates (like WPLS, USDC, etc.) are not tax tokens, so any adapter type works fine for hop 2, hop 3, etc.
+
+```
+✅  TaxToken → [V2 adapter] → WPLS → [V3 adapter] → PLSX     (works)
+✅  TaxToken → [V2 adapter] → PLSX                             (works)
+❌  TaxToken → [V3 adapter] → WPLS → ...                       (reverts IIA)
+❌  TaxToken → [Curve-style adapter] → WPLS → ...              (reverts)
+```
+
+**V2-style adapters (safe for first hop with tax tokens):**
+
+| Adapter | Type |
+|---|---|
+| UniswapV2 | V2 direct pair |
+| SushiV2 | V2 direct pair |
+| PulseXV1 | V2 direct pair |
+| PulseXV2 | V2 direct pair |
+| 9inchV2 | V2 direct pair |
+| DextopV2 | V2 direct pair |
+
+**Unsafe for first hop with tax tokens:**
+
+| Adapter | Type | Why |
+|---|---|---|
+| UniswapV3 | V3 callback | Double sell tax via callback |
+| 9mmV3 | V3 callback | Double sell tax via callback |
+| 9inchV3 | V3 callback | Double sell tax via callback |
+| pDexV3 | V3 callback | Double sell tax via callback |
+| DextopV3 | V3 callback | Double sell tax via callback |
+| Phux | Curve-style | Not designed for tax tokens |
+| Tide | Curve-style | Not designed for tax tokens |
+| PulseXStable | Curve-style | Not designed for tax tokens |
+
+```ts
+function isFirstHopSafe(adapterAddress: string, tokenInSellTaxBps: number): boolean {
+  if (tokenInSellTaxBps === 0) return true; // no tax — all adapters OK
+
+  // V2-style adapters (safe for tax token first hop)
+  const V2_ADAPTERS = new Set([
+    "0x...", // UniswapV2  — replace with actual adapter addresses
+    "0x...", // SushiV2
+    "0x...", // PulseXV1
+    "0x...", // PulseXV2
+    "0x...", // 9inchV2
+    "0x...", // DextopV2
+  ].map(a => a.toLowerCase()));
+
+  return V2_ADAPTERS.has(adapterAddress.toLowerCase());
+}
+```
+
+### Last-Hop Adapter Restriction for Buy-Tax Outputs
+
+> **Critical.** Using the wrong adapter type on the last hop causes inflated quotes and `transfer amount exceeds balance` reverts when the output token has a buy tax.
+
+When `tokenOutBuyTaxBps > 0`, the **last hop** of your route **must** use a UniswapV2-style adapter. Do **not** use V3 or PulseXStable adapters for the last hop.
+
+**Why:** UniswapV3 and PulseXStable adapters route output through an intermediate step — the pool sends tokens to the adapter, then the adapter forwards them to the recipient. This creates **two transfers** (pool → adapter → recipient), and the buy tax is applied on **each transfer**, so the recipient receives far less than the quoted amount.
+
+UniswapV2-style adapters work differently: the pair sends tokens **directly to the recipient** in a single transfer, so the buy tax is only applied once.
+
+**Intermediate hops are unrestricted.** Middle hops use non-tax intermediates (WPLS, PLSX, USDC, etc.), so any adapter type works. Only the final hop — where the output token is delivered — needs to be restricted.
+
+```
+✅  WPLS → [V3 adapter] → PLSX → [V2 adapter] → TaxToken     (works)
+✅  WPLS → [V2 adapter] → TaxToken                             (works)
+❌  WPLS → [V3 adapter] → TaxToken                             (double buy tax)
+❌  WPLS → [V2 adapter] → PLSX → [V3 adapter] → TaxToken      (double buy tax on last hop)
+```
+
+**Safe for last hop with buy-tax output:**
+
+| Adapter | Type | Why safe |
+|---|---|---|
+| UniswapV2 | V2 direct pair | Pair → recipient (1 transfer) |
+| SushiV2 | V2 direct pair | Pair → recipient (1 transfer) |
+| PulseXV1 | V2 direct pair | Pair → recipient (1 transfer) |
+| PulseXV2 | V2 direct pair | Pair → recipient (1 transfer) |
+| 9inchV2 | V2 direct pair | Pair → recipient (1 transfer) |
+| DextopV2 | V2 direct pair | Pair → recipient (1 transfer) |
+
+**Unsafe for last hop with buy-tax output:**
+
+| Adapter | Type | Why unsafe |
+|---|---|---|
+| UniswapV3 | V3 callback | Pool → adapter → recipient (2 buy-tax hits) |
+| 9mmV3 | V3 callback | Pool → adapter → recipient (2 buy-tax hits) |
+| 9inchV3 | V3 callback | Pool → adapter → recipient (2 buy-tax hits) |
+| pDexV3 | V3 callback | Pool → adapter → recipient (2 buy-tax hits) |
+| DextopV3 | V3 callback | Pool → adapter → recipient (2 buy-tax hits) |
+| PulseXStable | Curve-style | Pool → adapter → recipient (2 buy-tax hits) |
+| Phux | Curve-style | Vault → adapter → recipient (2 buy-tax hits) |
+| Tide | Curve-style | Vault → adapter → recipient (2 buy-tax hits) |
+
+> **Note:** When both input has sell tax AND output has buy tax, both restrictions apply simultaneously. First hop → V2 only, last hop → V2 only, middle hops → unrestricted.
+
+```ts
+function isLastHopSafe(adapterAddress: string, tokenOutBuyTaxBps: number): boolean {
+  if (tokenOutBuyTaxBps === 0) return true; // no buy tax — all adapters OK
+
+  // V2-style adapters (safe for buy-tax output on last hop)
+  const V2_ADAPTERS = new Set([
+    "0x...", // UniswapV2  — replace with actual adapter addresses
+    "0x...", // SushiV2
+    "0x...", // PulseXV1
+    "0x...", // PulseXV2
+    "0x...", // 9inchV2
+    "0x...", // DextopV2
+  ].map(a => a.toLowerCase()));
+
+  return V2_ADAPTERS.has(adapterAddress.toLowerCase());
+}
+```
 
 ### Route Amount Scaling for Sell-Tax Input (`feeOnOutput=true`)
 
@@ -611,4 +772,4 @@ MIT
 
 ---
 
-*Last updated: February 2026*
+*Last updated: March 2026*
