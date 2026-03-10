@@ -77,8 +77,8 @@ The contract enforces `minAmountOut` for the maker — everything above that is 
 | Contract | Address |
 |---|---|
 | **SwitchRouter** | `0x99999d19eC98F936934e029e63D1C0A127a15207` |
-| **SwitchLimitOrder** | `0x8FDA554D8bD5B3aEe699b2502C7248BF4205bbCd` |
-| **SwitchPLSFlow** | `0xF3c05d40412DBb6326B1C7dCf689445063b6BCE4` |
+| **SwitchLimitOrder** | `0x79925587bE77C25b292C0ecA6FEdD3A3f07916F9` |
+| **SwitchPLSFlow** | `0x79D1Ce697509D75D79c6cA8f9232ee6ca6Df379a` |
 
 Chain: **PulseChain** (ID `369`) &nbsp;|&nbsp; Fee denominator: `10000` (basis points)
 
@@ -183,7 +183,7 @@ Or use `canFillOrder(order, signature)` — performs all checks in one call (doe
 
 ### PLSFlow Orders (Native PLS)
 
-Orders where `maker == 0xF3c05d40412DBb6326B1C7dCf689445063b6BCE4` are PLSFlow orders (native PLS sold as WPLS). For these:
+Orders where `maker == 0x79D1Ce697509D75D79c6cA8f9232ee6ca6Df379a` are PLSFlow orders (native PLS sold as WPLS). For these:
 
 - **Skip** maker allowance checks (PLSFlow has infinite approval)
 - Check `WPLS.balanceOf(PLSFlow)` instead of maker balance
@@ -261,7 +261,7 @@ const tx = await contract.fillOrder(order, signature, routes, excessOnInput);
 import { ethers } from "ethers";
 import SwitchLimitOrderABI from "./abi/SwitchLimitOrderABI.json";
 
-const LIMIT_ORDER_ADDRESS = "0x8FDA554D8bD5B3aEe699b2502C7248BF4205bbCd";
+const LIMIT_ORDER_ADDRESS = "0x79925587bE77C25b292C0ecA6FEdD3A3f07916F9";
 const provider = new ethers.JsonRpcProvider("https://rpc.pulsechain.com");
 const signer = new ethers.Wallet(OPERATOR_PRIVATE_KEY, provider);
 const contract = new ethers.Contract(LIMIT_ORDER_ADDRESS, SwitchLimitOrderABI, signer);
@@ -756,7 +756,7 @@ Available in [Switch-SDK](https://github.com/BuildTheTech/Switch-SDK):
   "name": "SwitchLimitOrder",
   "version": "2",
   "chainId": 369,
-  "verifyingContract": "0x8FDA554D8bD5B3aEe699b2502C7248BF4205bbCd"
+  "verifyingContract": "0x79925587bE77C25b292C0ecA6FEdD3A3f07916F9"
 }
 ```
 
