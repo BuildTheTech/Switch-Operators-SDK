@@ -77,8 +77,8 @@ The contract enforces `minAmountOut` for the maker — everything above that is 
 | Contract | Address |
 |---|---|
 | **SwitchRouter** | `0x99999d19eC98F936934e029e63D1C0A127a15207` |
-| **SwitchLimitOrder** | `0x28754379e9E9867A64b77437930cBc5009939692` |
-| **SwitchPLSFlow** | `0x0fD3fD40F06159606165F21047B83136172273E3` |
+| **SwitchLimitOrder** | `0x826B16e0B9D7B9fb2CcBC7fACB4547A57Cc92700` |
+| **SwitchPLSFlow** | `0x2009E8190823f44EBE2037b911Ee2f32Dcc39790` |
 
 Chain: **PulseChain** (ID `369`) &nbsp;|&nbsp; Fee denominator: `10000` (basis points)
 
@@ -143,6 +143,7 @@ GET https://quote.switch.win/limit-orders?status=ACTIVE
       "feeOnOutput": false,
       "recipient": "0x...",
       "unwrapOutput": false,
+      "partnerAddress": "0x0000000000000000000000000000000000000000",
       "signature": "0x...",
       "pairKey": "0xa1077...:0x95b30...",
       "status": "ACTIVE",
@@ -182,7 +183,7 @@ Or use `canFillOrder(order, signature)` — performs all checks in one call (doe
 
 ### PLSFlow Orders (Native PLS)
 
-Orders where `maker == 0x0fD3fD40F06159606165F21047B83136172273E3` are PLSFlow orders (native PLS sold as WPLS). For these:
+Orders where `maker == 0x2009E8190823f44EBE2037b911Ee2f32Dcc39790` are PLSFlow orders (native PLS sold as WPLS). For these:
 
 - **Skip** maker allowance checks (PLSFlow has infinite approval)
 - Check `WPLS.balanceOf(PLSFlow)` instead of maker balance
@@ -260,7 +261,7 @@ const tx = await contract.fillOrder(order, signature, routes, excessOnInput);
 import { ethers } from "ethers";
 import SwitchLimitOrderABI from "./abi/SwitchLimitOrderABI.json";
 
-const LIMIT_ORDER_ADDRESS = "0x28754379e9E9867A64b77437930cBc5009939692";
+const LIMIT_ORDER_ADDRESS = "0x826B16e0B9D7B9fb2CcBC7fACB4547A57Cc92700";
 const provider = new ethers.JsonRpcProvider("https://rpc.pulsechain.com");
 const signer = new ethers.Wallet(OPERATOR_PRIVATE_KEY, provider);
 const contract = new ethers.Contract(LIMIT_ORDER_ADDRESS, SwitchLimitOrderABI, signer);
@@ -276,6 +277,7 @@ const order = {
   feeOnOutput: apiOrder.feeOnOutput,
   recipient: apiOrder.recipient,
   unwrapOutput: apiOrder.unwrapOutput,
+  partnerAddress: apiOrder.partnerAddress,
 };
 
 const routes = [{
@@ -639,6 +641,7 @@ struct LimitOrder {
     bool    feeOnOutput;   // true = fee from output, false = fee from input
     address recipient;     // Output recipient (usually maker's address)
     bool    unwrapOutput;  // true = unwrap WPLS to native PLS for recipient
+    address partnerAddress; // Partner address for fee sharing (zero = no partner)
 }
 ```
 
@@ -753,7 +756,7 @@ Available in [Switch-SDK](https://github.com/BuildTheTech/Switch-SDK):
   "name": "SwitchLimitOrder",
   "version": "2",
   "chainId": 369,
-  "verifyingContract": "0x28754379e9E9867A64b77437930cBc5009939692"
+  "verifyingContract": "0x826B16e0B9D7B9fb2CcBC7fACB4547A57Cc92700"
 }
 ```
 
