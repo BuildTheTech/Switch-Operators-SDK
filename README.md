@@ -78,7 +78,7 @@ The contract enforces `minAmountOut` for the maker — everything above that is 
 |---|---|
 | **SwitchRouter** | `0x99999d19eC98F936934e029e63D1C0A127a15207` |
 | **SwitchLimitOrder** | `0x826B16e0B9D7B9fb2CcBC7fACB4547A57Cc92700` |
-| **SwitchPLSFlow** | `0x2009E8190823f44EBE2037b911Ee2f32Dcc39790` |
+| **SwitchPLSFlow** | `0x48065c938E4daF05b0BcB2645c69B5C86AB45Cd1` |
 
 Chain: **PulseChain** (ID `369`) &nbsp;|&nbsp; Fee denominator: `10000` (basis points)
 
@@ -183,7 +183,7 @@ Or use `canFillOrder(order, signature)` — performs all checks in one call (doe
 
 ### PLSFlow Orders (Native PLS)
 
-Orders where `maker == 0x2009E8190823f44EBE2037b911Ee2f32Dcc39790` are PLSFlow orders (native PLS sold as WPLS). For these:
+Orders where `maker == 0x48065c938E4daF05b0BcB2645c69B5C86AB45Cd1` are PLSFlow orders (native PLS sold as WPLS). For these:
 
 - **Skip** maker allowance checks (PLSFlow has infinite approval)
 - Check `WPLS.balanceOf(PLSFlow)` instead of maker balance
