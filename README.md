@@ -76,9 +76,9 @@ The contract enforces `minAmountOut` for the maker — everything above that is 
 
 | Contract | Address |
 |---|---|
-| **SwitchRouter** | `0x99999d19eC98F936934e029e63D1C0A127a15207` |
-| **SwitchLimitOrder** | `0x79925587bE77C25b292C0ecA6FEdD3A3f07916F9` |
-| **SwitchPLSFlow** | `0x79D1Ce697509D75D79c6cA8f9232ee6ca6Df379a` |
+| **SwitchRouter** | `0xc6d4f096A7a4B3d534DEa725821346Ee1b4FE5CE` |
+| **SwitchLimitOrder** | `0x0e884072a891b406C0D814907A1E2310fE5F5Deb` |
+| **SwitchPLSFlow** | `0x88c9e2C83b6B7c707602e548481e58E920694E64` |
 
 Chain: **PulseChain** (ID `369`) &nbsp;|&nbsp; Fee denominator: `10000` (basis points)
 
@@ -183,7 +183,7 @@ Or use `canFillOrder(order, signature)` — performs all checks in one call (doe
 
 ### PLSFlow Orders (Native PLS)
 
-Orders where `maker == 0x79D1Ce697509D75D79c6cA8f9232ee6ca6Df379a` are PLSFlow orders (native PLS sold as WPLS). For these:
+Orders where `maker == 0x88c9e2C83b6B7c707602e548481e58E920694E64` are PLSFlow orders (native PLS sold as WPLS). For these:
 
 - **Skip** maker allowance checks (PLSFlow has infinite approval)
 - Check `WPLS.balanceOf(PLSFlow)` instead of maker balance
@@ -261,7 +261,7 @@ const tx = await contract.fillOrder(order, signature, routes, excessOnInput);
 import { ethers } from "ethers";
 import SwitchLimitOrderABI from "./abi/SwitchLimitOrderABI.json";
 
-const LIMIT_ORDER_ADDRESS = "0x79925587bE77C25b292C0ecA6FEdD3A3f07916F9";
+const LIMIT_ORDER_ADDRESS = "0x0e884072a891b406C0D814907A1E2310fE5F5Deb";
 const provider = new ethers.JsonRpcProvider("https://rpc.pulsechain.com");
 const signer = new ethers.Wallet(OPERATOR_PRIVATE_KEY, provider);
 const contract = new ethers.Contract(LIMIT_ORDER_ADDRESS, SwitchLimitOrderABI, signer);
@@ -515,12 +515,12 @@ function isFirstHopSafe(adapterAddress: string, tokenInSellTaxBps: number): bool
 
   // V2-style adapters (safe for tax token first hop)
   const V2_ADAPTERS = new Set([
-    "0x...", // UniswapV2  — replace with actual adapter addresses
-    "0x...", // SushiV2
-    "0x...", // PulseXV1
-    "0x...", // PulseXV2
-    "0x...", // 9inchV2
-    "0x...", // DextopV2
+    "0x971eeb4a5080834f7df2b9d7a11dfbeaa7bc187e", // UniswapV2
+    "0x5ef53d5eb4f011d9bed35e7112945f0dc96b3822", // SushiV2
+    "0x6f5ccfca1f1d3fff70202463df05573cc1668cb6", // PulseXV1
+    "0x393e382520b93b8f662dc76295000930c06d689f", // PulseXV2
+    "0x4810beadf72a1f297f4e5ff71424d98b2bf4441e", // 9inchV2
+    "0xd096faccdd475f2c86f3c668958fcd435e32bdc2", // DextopV2
   ].map(a => a.toLowerCase()));
 
   return V2_ADAPTERS.has(adapterAddress.toLowerCase());
@@ -662,6 +662,7 @@ struct HopAllocation {
 struct HopAdapterAllocation {
     address adapter;            // On-chain adapter contract
     uint256 amountIn;           // Input for this adapter
+    uint24  fee;                // V3 pool fee tier (0 for V2/Curve adapters)
 }
 ```
 
@@ -676,7 +677,7 @@ const routes = [{
   amountIn: ethers.parseUnits("950", 18),
   hops: [{
     tokenIn: WPLS, tokenOut: PLSX,
-    legs: [{ adapter: PULSEX_V2_ADAPTER, amountIn: ethers.parseUnits("950", 18) }],
+    legs: [{ adapter: PULSEX_V2_ADAPTER, amountIn: ethers.parseUnits("950", 18), fee: 0 }],
   }],
 }];
 ```
@@ -687,8 +688,8 @@ const routes = [{
 const routes = [{
   amountIn: ethers.parseUnits("950", 18),
   hops: [
-    { tokenIn: WPLS, tokenOut: USDC, legs: [{ adapter: pulseXV2, amountIn: wplsAmount }] },
-    { tokenIn: USDC, tokenOut: PLSX, legs: [{ adapter: uniV3, amountIn: usdcAmount }] },
+    { tokenIn: WPLS, tokenOut: USDC, legs: [{ adapter: pulseXV2, amountIn: wplsAmount, fee: 0 }] },
+    { tokenIn: USDC, tokenOut: PLSX, legs: [{ adapter: uniV3, amountIn: usdcAmount, fee: 3000 }] },
   ],
 }];
 ```
@@ -697,8 +698,8 @@ const routes = [{
 
 ```ts
 legs: [
-  { adapter: pulseXV2, amountIn: (total * 60n) / 100n },
-  { adapter: uniV3,    amountIn: (total * 40n) / 100n },
+  { adapter: pulseXV2, amountIn: (total * 60n) / 100n, fee: 0 },
+  { adapter: uniV3,    amountIn: (total * 40n) / 100n, fee: 3000 },
 ]
 ```
 
@@ -717,6 +718,7 @@ legs: [
 | `RouteInputExceedsMax()` | Route total > available after fee | Reduce route input |
 | `InvalidTokens()` | `tokenIn == tokenOut` or zero address | Skip order |
 | `TransferFailed()` | Transfer failed (revoked allowance, etc.) | Re-check pre-flight |
+| `OperatorOnly()` | Caller doesn't have OPERATOR_ROLE (when operator gate enabled) | Need operator role |
 
 ---
 
@@ -737,7 +739,8 @@ function domainSeparator() external view returns (bytes32);
 event OrderFilled(
     address indexed maker, address indexed filler, uint256 indexed nonce,
     address tokenIn, address tokenOut, uint256 amountIn,
-    uint256 makerAmountOut, uint256 fillerProfit, bool excessOnInput
+    uint256 makerAmountOut, uint256 fillerProfit, bool excessOnInput,
+    address partnerAddress, bool directFill
 );
 event NonceCancelled(address indexed maker, uint256 indexed nonce);
 ```
@@ -756,7 +759,7 @@ Available in [Switch-SDK](https://github.com/BuildTheTech/Switch-SDK):
   "name": "SwitchLimitOrder",
   "version": "2",
   "chainId": 369,
-  "verifyingContract": "0x79925587bE77C25b292C0ecA6FEdD3A3f07916F9"
+  "verifyingContract": "0x0e884072a891b406C0D814907A1E2310fE5F5Deb"
 }
 ```
 
