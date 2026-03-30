@@ -189,6 +189,27 @@ Orders where `maker == 0x88c9e2C83b6B7c707602e548481e58E920694E64` are PLSFlow o
 - Check `WPLS.balanceOf(PLSFlow)` instead of maker balance
 - Fill identically to standard orders
 
+> **⚠️ Recipient Verification for PLSFlow Orders**
+>
+> PLSFlow orders have `maker == PLSFlow contract`, but the **recipient** is the
+> real user who deposited PLS. The EIP-712 digest (used for ERC-1271 validation)
+> includes the recipient, so using the wrong value causes `InvalidSignature`.
+>
+> **Best practice:** For PLSFlow orders (`signature == "0x"`), verify the
+> recipient on-chain before filling:
+>
+> ```ts
+> const PLSFLOW = "0x88c9e2C83b6B7c707602e548481e58E920694E64";
+> const plsFlow = new ethers.Contract(PLSFLOW, [
+>   "function getOrder(uint256 nonce) view returns (tuple(address maker, address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, uint256 deadline, uint256 nonce, bool feeOnOutput, address recipient, bool unwrapOutput, address partnerAddress))",
+> ], provider);
+>
+> if (apiOrder.maker.toLowerCase() === PLSFLOW.toLowerCase()) {
+>   const onChain = await plsFlow.getOrder(apiOrder.nonce);
+>   order.recipient = onChain.recipient; // use on-chain truth
+> }
+> ```
+
 ### Profitability Check
 
 1. Quote the pair through your own routing (Switch does **not** provide a routing API — this is where your competitive edge comes from)
@@ -707,18 +728,78 @@ legs: [
 
 ## Revert Errors
 
-| Error | Meaning | Action |
-|---|---|---|
-| `InvalidSignature()` | Signature doesn't recover to maker | Skip order |
-| `NonceAlreadyUsed()` | Already filled or cancelled | Remove from active list |
-| `OrderExpired()` | Past deadline | Remove from active list |
-| `InsufficientOutput()` | Output < `minAmountOut` after fees | Re-evaluate routes / increase `outputAmount` |
-| `InvalidAmount()` | `amountIn` or `minAmountOut` is zero | Skip order |
-| `ExcessiveFee()` | Fee exceeds maximum (shouldn't happen) | Contact Switch team |
-| `RouteInputExceedsMax()` | Route total > available after fee | Reduce route input |
-| `InvalidTokens()` | `tokenIn == tokenOut` or zero address | Skip order |
-| `TransferFailed()` | Transfer failed (revoked allowance, etc.) | Re-check pre-flight |
-| `OperatorOnly()` | Caller doesn't have OPERATOR_ROLE (when operator gate enabled) | Need operator role |
+### SwitchLimitOrder Errors
+
+| Selector | Error | Meaning | Action |
+|---|---|---|---|
+| `0x8baa579f` | `InvalidSignature()` | Signature doesn't recover to maker | Skip order (see PLSFlow note below) |
+| `0x1fb09b80` | `NonceAlreadyUsed()` | Already filled or cancelled | Remove from active list |
+| `0xc56873ba` | `OrderExpired()` | Past deadline | Remove from active list |
+| `0xbb2875c3` | `InsufficientOutput()` | Output < `minAmountOut` after fees | Re-evaluate routes / increase `outputAmount` |
+| `0x2c5211c6` | `InvalidAmount()` | `amountIn` or `minAmountOut` is zero | Skip order |
+| `0x2977da44` | `ExcessiveFee()` | Fee exceeds maximum (shouldn't happen) | Contact Switch team |
+| `0xb6972a87` | `RouteInputExceedsMax()` | Route total > available after fee | Reduce route input |
+| `0x672215de` | `InvalidTokens()` | `tokenIn == tokenOut` or zero address | Skip order |
+| `0x90b8ec18` | `TransferFailed()` | Transfer failed (revoked allowance, etc.) | Re-check pre-flight |
+| `0xae5e3e00` | `OperatorOnly()` | Caller doesn't have OPERATOR_ROLE (when operator gate enabled) | Need operator role |
+
+> **PLSFlow + InvalidSignature:** If a PLSFlow order (`maker == PLSFlow`, `signature == "0x"`) reverts with `InvalidSignature`, the on-chain `recipient` likely differs from the API's `recipient`. Use [on-chain verification](#plsflow-orders-native-pls) to fetch the correct value.
+
+### SwitchRouter Errors (during route fills)
+
+| Selector | Error | Meaning | Action |
+|---|---|---|---|
+| `0x025dbdd4` | `InsufficientFee()` | Fee param below minimum | Use `getFee()` to get current fee |
+| `0x2977da44` | `ExcessiveFee()` | Fee param above maximum | Use `getFee()` to get current fee |
+| `0x4a2ab023` | `FinalAmountOutTooLow()` | Route output below `_minTotalAmountOut` | Re-quote route |
+| `0x5725cad2` | `EmptySplit()` | Empty route allocation | Ensure routes array is non-empty |
+| `0xdceb8b7a` | `SplitMixedTokenIn()` | Route hops have inconsistent tokenIn | Fix route construction |
+| `0x45a68c8c` | `SplitMixedTokenOut()` | Route hops have inconsistent tokenOut | Fix route construction |
+| `0xaf458c07` | `ZeroInput()` | Zero amountIn in route/hop/leg | Ensure all amounts > 0 |
+| `0xbc6f88c5` | `MsgValueMismatch()` | `msg.value` doesn't match expected native input | Match `msg.value` to route input |
+| `0x906478dc` | `PathNeedsBeginWithWPLS()` | Native PLS swap route doesn't start with WPLS | Route from WPLS for native input |
+| `0x037ccaee` | `PathNeedsEndWithWPLS()` | Native PLS output route doesn't end with WPLS | Route to WPLS for native output |
+| `0x0c48343e` | `AdapterNotApproved(address)` | Adapter not registered on router | Use only registered adapters |
+| `0xb19ef58a` | `EmptyHop()` | Hop has no legs | Ensure every hop has ≥ 1 leg |
+| `0x73620122` | `FeeNotSupported()` | Fee mode not supported for this path | Check `feeOnOutput` compatibility |
+
+### Matching Selectors in Code
+
+```ts
+function matchErrorSelector(revertData: string): string | undefined {
+  if (!revertData || revertData.length < 10) return undefined;
+  const selector = revertData.slice(0, 10).toLowerCase();
+
+  const SELECTORS: Record<string, string> = {
+    // SwitchLimitOrder
+    "0x8baa579f": "InvalidSignature",
+    "0x1fb09b80": "NonceAlreadyUsed",
+    "0xc56873ba": "OrderExpired",
+    "0xbb2875c3": "InsufficientOutput",
+    "0x2c5211c6": "InvalidAmount",
+    "0x2977da44": "ExcessiveFee",
+    "0xb6972a87": "RouteInputExceedsMax",
+    "0x672215de": "InvalidTokens",
+    "0x90b8ec18": "TransferFailed",
+    "0xae5e3e00": "OperatorOnly",
+    // SwitchRouter
+    "0x025dbdd4": "InsufficientFee",
+    "0x4a2ab023": "FinalAmountOutTooLow",
+    "0x5725cad2": "EmptySplit",
+    "0xdceb8b7a": "SplitMixedTokenIn",
+    "0x45a68c8c": "SplitMixedTokenOut",
+    "0xaf458c07": "ZeroInput",
+    "0xbc6f88c5": "MsgValueMismatch",
+    "0x906478dc": "PathNeedsBeginWithWPLS",
+    "0x037ccaee": "PathNeedsEndWithWPLS",
+    "0x0c48343e": "AdapterNotApproved",
+    "0xb19ef58a": "EmptyHop",
+    "0x73620122": "FeeNotSupported",
+  };
+
+  return SELECTORS[selector];
+}
+```
 
 ---
 
