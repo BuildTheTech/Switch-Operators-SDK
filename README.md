@@ -76,11 +76,13 @@ The contract enforces `minAmountOut` for the maker — everything above that is 
 
 | Contract | Address |
 |---|---|
-| **SwitchRouter** | `0xc6d4f096A7a4B3d534DEa725821346Ee1b4FE5CE` |
-| **SwitchLimitOrder** | `0x0e884072a891b406C0D814907A1E2310fE5F5Deb` |
+| **SwitchRouter** | `0x0305fcb5dA680EA6fd1B01A96C1949175B99d406` |
+| **SwitchLimitOrder** | `0x8e3881bdF81Fc0211383B2e576076B654F7aFD86` |
 | **SwitchPLSFlow** | `0x88c9e2C83b6B7c707602e548481e58E920694E64` |
 
 Chain: **PulseChain** (ID `369`) &nbsp;|&nbsp; Fee denominator: `10000` (basis points)
+
+> **⚠️ Important:** The SwitchLimitOrder address above is the **current** default. The contract may be redeployed (e.g. when the router is upgraded). Each order returned by the API includes a `limitOrderContract` field — **always call `fillOrder` / `directFillOrder` on the contract address from the order, not a hardcoded constant.** This ensures your bot works seamlessly across contract versions without code changes. See the [config endpoint](#config-endpoint) for dynamic discovery.
 
 ---
 
@@ -151,6 +153,7 @@ GET https://quote.switch.win/limit-orders?status=ACTIVE
       "tokenInBuyTaxBps": 0,
       "tokenOutSellTaxBps": 500,
       "tokenOutBuyTaxBps": 500,
+      "limitOrderContract": "0x8e3881bdf81fc0211383b2e576076b654f7afd86",
       "createdAt": "2025-01-01T00:00:00.000Z",
       "updatedAt": "2025-01-01T00:00:00.000Z"
     }
@@ -159,6 +162,33 @@ GET https://quote.switch.win/limit-orders?status=ACTIVE
 ```
 
 > **Tax fields** are in basis points (100 = 1%). `0` = no tax detected. Populated automatically at order creation.
+
+> **⚠️ `limitOrderContract`** — Each order includes the address of the SwitchLimitOrder contract it was created against. **Always use this field** when constructing the contract instance for `fillOrder` or `directFillOrder`. The LO contract may be redeployed over time; using the per-order address ensures your bot fills orders against the correct contract regardless of version.
+
+### Config Endpoint
+
+Retrieve the current default contract addresses dynamically:
+
+```
+GET https://quote.switch.win/limit-orders/config
+```
+
+Response:
+
+```json
+{
+  "limitOrderContract": "0x8e3881bdf81fc0211383b2e576076b654f7afd86",
+  "plsFlowContract": "0x88c9e2c83b6b7c707602e548481e58e920694e64",
+  "eip712Domain": {
+    "name": "SwitchLimitOrder",
+    "version": "2",
+    "chainId": 369,
+    "verifyingContract": "0x8e3881bdf81fc0211383b2e576076b654f7afd86"
+  }
+}
+```
+
+Use this at startup to initialize defaults. For individual orders, always prefer the `limitOrderContract` field from each order object.
 
 ### Polling Strategy
 
@@ -176,10 +206,10 @@ GET https://quote.switch.win/limit-orders?status=ACTIVE
 2. **Nonce unused:** `isNonceUsed(maker, nonce)` returns `false`
 3. **Maker has balance:** `ERC20(tokenIn).balanceOf(maker) >= amountIn`
 4. **Maker has allowance:**
-   - `feeOnOutput == false`: allowance to SwitchLimitOrder
-   - `feeOnOutput == true`: allowance to SwitchRouter
+   - `feeOnOutput == false`: allowance to the order's `limitOrderContract`
+   - `feeOnOutput == true`: allowance to the SwitchRouter stored in that LO contract
 
-Or use `canFillOrder(order, signature)` — performs all checks in one call (does not check DEX liquidity).
+Or use `canFillOrder(order, signature)` on the order's `limitOrderContract` — performs all checks in one call (does not check DEX liquidity).
 
 ### PLSFlow Orders (Native PLS)
 
@@ -261,8 +291,8 @@ Your profit = value of input received − value of output sent − gas.
 
 | Who | `feeOnOutput=false` | `feeOnOutput=true` |
 |---|---|---|
-| **Maker** approves | SwitchLimitOrder | SwitchRouter |
-| **Operator** approves (direct fill only) | SwitchLimitOrder for tokenOut | SwitchLimitOrder for tokenOut |
+| **Maker** approves | Order's `limitOrderContract` | SwitchRouter (stored in LO contract) |
+| **Operator** approves (direct fill only) | Order's `limitOrderContract` for tokenOut | Order's `limitOrderContract` for tokenOut |
 
 ### Always Simulate First
 
@@ -282,10 +312,10 @@ const tx = await contract.fillOrder(order, signature, routes, excessOnInput);
 import { ethers } from "ethers";
 import SwitchLimitOrderABI from "./abi/SwitchLimitOrderABI.json";
 
-const LIMIT_ORDER_ADDRESS = "0x0e884072a891b406C0D814907A1E2310fE5F5Deb";
+// Use the limitOrderContract from the order — do NOT hardcode
 const provider = new ethers.JsonRpcProvider("https://rpc.pulsechain.com");
 const signer = new ethers.Wallet(OPERATOR_PRIVATE_KEY, provider);
-const contract = new ethers.Contract(LIMIT_ORDER_ADDRESS, SwitchLimitOrderABI, signer);
+const contract = new ethers.Contract(apiOrder.limitOrderContract, SwitchLimitOrderABI, signer);
 
 const order = {
   maker: apiOrder.maker,
@@ -319,8 +349,8 @@ await tx.wait();
 ### Example: Direct Fill
 
 ```ts
-// One-time approval
-await outputToken.approve(LIMIT_ORDER_ADDRESS, ethers.MaxUint256);
+// Approve the correct LO contract (use limitOrderContract from the order)
+await outputToken.approve(apiOrder.limitOrderContract, ethers.MaxUint256);
 
 // Calculate output amount
 const fee = await contract.getFee(); // e.g. 30 = 0.30%
