@@ -32,10 +32,11 @@ The network-aware helper package is published as
 [`@switch-win/sdk`](https://www.npmjs.com/package/@switch-win/sdk):
 
 ```bash
-npm install @switch-win/sdk ethers
+npm install @switch-win/sdk@^1.2.4 ethers
 ```
 
-The current npm release is `1.2.3`. This repository contains the operator
+Use `@switch-win/sdk` version `1.2.4` or newer for the current four-field route
+leg ABI and Robinhood adapter metadata. This repository contains the operator
 integration documentation; it is not a separate npm package.
 
 ## Support

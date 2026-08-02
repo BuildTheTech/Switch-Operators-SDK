@@ -101,7 +101,8 @@ router from the order contract and use adapters registered on that router. The
 fill transaction target is the order's SwitchLimitOrder, never a swap quote's
 `tx.to` address.
 
-Production state verified July 19, 2026:
+Core contract state verified July 19, 2026; adapter registry verified August 2,
+2026:
 
 - `SwitchLimitOrder.getFee()` returns `10` bps (`0.10%`).
 - `SwitchRouter.MIN_FEE()` returns `10` bps and `MAX_FEE()` returns `100` bps.
@@ -655,7 +656,9 @@ balance increase.
 ### Profit Adjustments
 
 1. Gross up taxed transfers using ceiling division, never floating point.
-2. Quote the amount a pool actually receives, not the nominal transfer amount.
+2. For direct-pair adapters, quote the amount the pair actually receives, not
+   the nominal transfer amount. For Flap, quote the full adapter input because
+   its Portal quote already models the taxable transfer.
 3. Require the recipient's net output to meet `minAmountOut`.
 4. Avoid receiving a taxed token as profit when the other side is practical.
 5. Add uncertainty margin for dynamic, allowlisted, or mutable tax logic.
@@ -672,7 +675,7 @@ function grossForNet(net: bigint, taxBps: bigint): bigint {
 ### First-Hop Adapter Restriction for Sell-Tax Inputs
 
 On Robinhood this is intentionally stricter than the PulseChain rule: when
-`tokenInSellTaxBps > 0`, **every leg of every hop** must use a tax-safe V2
+`tokenInSellTaxBps > 0`, **every leg of every hop** must use a tax-safe
 adapter. Restricting only the first hop is insufficient for the production
 routing policy.
 
@@ -685,6 +688,9 @@ Current tax-safe adapters:
 | 7 | SheriffV2 | `0xBDB3EB0355981500f58C9bc77c3E61762844A146` |
 | 10 | CatnipV2 | `0x5b2Ca358d56490Dc86224D502522314De7707237` |
 | 11 | PancakeSwapV2 | `0x3B6e71A59553143937Fef74a7B50AFD24528786E` |
+| 14 | GigaV2 | `0xa379c7D17F7fEe735773879D4069886B117AB54a` |
+| 16 | Flap | `0x6af2A4475C44d5833575150Bf7C3D3FE6Bf4F344` |
+| 18 | RamsesV2 | `0x5fe3b873c222e76f7630b40052f07ee06196E6d3` |
 
 ```ts
 const TAX_SAFE_ADAPTERS = new Set([
@@ -693,6 +699,9 @@ const TAX_SAFE_ADAPTERS = new Set([
   "0xbdb3eb0355981500f58c9bc77c3e61762844a146",
   "0x5b2ca358d56490dc86224d502522314de7707237",
   "0x3b6e71a59553143937fef74a7b50afd24528786e",
+  "0xa379c7d17f7fee735773879d4069886b117ab54a",
+  "0x6af2a4475c44d5833575150bf7c3d3fe6bf4f344",
+  "0x5fe3b873c222e76f7630b40052f07ee06196e6d3",
 ]);
 
 function assertTaxSafeRoute(routes: Route[], eitherSideTaxed: boolean): void {
@@ -709,14 +718,22 @@ function assertTaxSafeRoute(routes: Route[], eitherSideTaxed: boolean): void {
 }
 ```
 
+GIGA V2 and Ramses V2 use direct-pair execution, so tax-token input goes
+straight from the router to the pair and the swap uses the actual amount
+received. Flap is the deliberate exception to the direct-pair family: only its
+Portal may execute the curve pair. Flap tokens exempt the maker/router to
+adapter transfer, and the Portal quote already includes the taxable transfer
+in both directions. Do not subtract or gross up the declared token tax again
+for a Flap leg.
+
 V3, V4, Algebra, and other callback-style adapters are not tax-safe for these
 orders even if a nominal quoter returns a value.
 
 ### Last-Hop Adapter Restriction for Buy-Tax Outputs
 
 When `tokenOutBuyTaxBps > 0`, apply the same route-wide restriction: every leg
-of every hop must be one of the five tax-safe V2 adapters above. Restricting
-only the last hop is not enough.
+of every hop must be one of the eight tax-safe adapters above. Restricting only
+the last hop is not enough.
 
 The route-wide policy makes split and multi-hop validation deterministic and
 prevents an intermediate adapter from introducing an extra taxed transfer or
@@ -746,6 +763,11 @@ Example: for a 5% tax and a quote requiring `950` net units, route `1000`
 gross units. Routing `950` gross would deliver only `902.5` units. Always
 confirm actual received amounts with `staticCall` because token tax formulas
 may not be linear.
+
+Do not apply this scaling helper to Flap. The Flap adapter receives its planned
+input in full, then the Portal performs the taxable transfer and returns a
+post-tax quote. Quote and route that full adapter input; applying the generic
+sell-tax reduction or gross-up would count the tax twice.
 
 ---
 
@@ -970,11 +992,12 @@ from every contract returned by the config endpoint, not only current defaults.
 
 ### ABIs
 
-The npm package is [`@switch-win/sdk`](https://www.npmjs.com/package/@switch-win/sdk)
-(current published version: `1.2.3`). Install it with:
+The npm package is [`@switch-win/sdk`](https://www.npmjs.com/package/@switch-win/sdk).
+Use version `1.2.4` or newer for the current four-field route leg ABI and
+Robinhood adapter metadata:
 
 ```bash
-npm install @switch-win/sdk
+npm install @switch-win/sdk@^1.2.4
 ```
 
 The package/repository supplies the SwitchLimitOrder and SwitchRouter ABIs.
@@ -1011,15 +1034,26 @@ Current Robinhood router adapters:
 | 5 | SwapHoodV3 | `0x9645dE0AcB48F0AAefdBEb423F0558457907DE98` | No |
 | 6 | Up33 | `0x388179D2FB0ABcE9b03068916aF8a3c4dfD023c8` | No |
 | 7 | SheriffV2 | `0xBDB3EB0355981500f58C9bc77c3E61762844A146` | Yes |
-| 8 | SheriffAlgebra | `0xeFE1affb0e2Bb8A9F7d9D30751bAF679996ADA26` | No |
+| 8 | SheriffAlgebra | `0xaC4da986100724983042Ec28c28db243E2f828CB` | No |
 | 9 | AeonAlgebra | `0x20615954FB87360139e7DdDB519359498EbD1904` | No |
 | 10 | CatnipV2 | `0x5b2Ca358d56490Dc86224D502522314De7707237` | Yes |
 | 11 | PancakeSwapV2 | `0x3B6e71A59553143937Fef74a7B50AFD24528786E` | Yes |
 | 12 | RobinSwapV3 | `0x798f77D63b46b0E019de206E111e5ea5CC16BEc8` | No |
 | 13 | SushiSwapV3 | `0xca3EA0Fd6E31f94c81B6586836790adE638313ED` | No |
+| 14 | GigaV2 | `0xa379c7D17F7fEe735773879D4069886B117AB54a` | Yes |
+| 15 | GigaV3 | `0xcAa612CDe3d3FbE97Be97eB5f79BC91597432d55` | No |
+| 16 | Flap | `0x6af2A4475C44d5833575150Bf7C3D3FE6Bf4F344` | Yes |
+| 17 | RamsesV3 | `0xdBf182774C60932c6fe1Bf3FFaB8Ca28CCb0dC17` | No |
+| 18 | RamsesV2 | `0x5fe3b873c222e76f7630b40052f07ee06196E6d3` | Yes |
 
 Adapter registration can change. Refresh the router registry and adapter
 metadata before route construction.
+
+For Ramses V3, select from tick spacings `1`, `5`, `10`, `50`, `100`, and `200`
+and store the winner in the route leg's `fee` field; do not treat that value as
+a fixed fee percentage. GIGA V2 and Ramses V2 both use each selected pair's
+live `getAmountOut` implementation and pair-owned fee. Operators should not
+hard-code either venue's V2 fee percentage.
 
 ### Uniswap Infrastructure
 
