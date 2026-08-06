@@ -84,8 +84,15 @@ The contract enforces `minAmountOut` for the maker — everything above that is 
 | **SwitchRouter** | `0x0305fcb5dA680EA6fd1B01A96C1949175B99d406` |
 | **SwitchLimitOrder** | `0x8e3881bdF81Fc0211383B2e576076B654F7aFD86` |
 | **SwitchPLSFlow** | `0x88c9e2C83b6B7c707602e548481e58E920694E64` |
+| **Finvesta V3 adapter (index 20)** | `0x012c44d0C465819eF3CeAC208e0c1B272087a8b4` |
 
 Chain: **PulseChain** (ID `369`) &nbsp;|&nbsp; Fee denominator: `10000` (basis points)
+
+Finvesta uses a Liberty-style V3 factory at
+`0x7f5c7C5144b4B4c6e954A5b2D75C318C5467EFDc`. For normal-token routes, the
+backend and limit-order bot evaluate fee tiers `100`, `500`, `2500`, and
+`10000`. Fetch `/swap/adapters?network=pulsechain` at runtime rather than
+assuming index `20` will remain the final adapter.
 
 > **⚠️ Important:** The SwitchLimitOrder address above is the **current** default. The contract may be redeployed (e.g. when the router is upgraded). Each order returned by the API includes a `limitOrderContract` field — **always call `fillOrder` / `directFillOrder` on the contract address from the order, not a hardcoded constant.** This ensures your bot works seamlessly across contract versions without code changes. See the [config endpoint](#config-endpoint) for dynamic discovery.
 
@@ -561,6 +568,7 @@ UniswapV2-style adapters work differently: tokens are transferred to the pair fi
 | 9inchV3 | V3 callback | Double sell tax via callback |
 | pDexV3 | V3 callback | Double sell tax via callback |
 | DextopV3 | V3 callback | Double sell tax via callback |
+| FinvestaV3 | Liberty-style V3 callback | Double sell tax via callback |
 | Phux | Curve-style | Not designed for tax tokens |
 | Tide | Curve-style | Not designed for tax tokens |
 | PulseXStable | Curve-style | Not designed for tax tokens |
@@ -622,6 +630,7 @@ UniswapV2-style adapters work differently: the pair sends tokens **directly to t
 | 9inchV3 | V3 callback | Pool → adapter → recipient (2 buy-tax hits) |
 | pDexV3 | V3 callback | Pool → adapter → recipient (2 buy-tax hits) |
 | DextopV3 | V3 callback | Pool → adapter → recipient (2 buy-tax hits) |
+| FinvestaV3 | Liberty-style V3 callback | Pool → adapter → recipient (2 buy-tax hits) |
 | PulseXStable | Curve-style | Pool → adapter → recipient (2 buy-tax hits) |
 | Phux | Curve-style | Vault → adapter → recipient (2 buy-tax hits) |
 | Tide | Curve-style | Vault → adapter → recipient (2 buy-tax hits) |
