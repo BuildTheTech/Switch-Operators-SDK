@@ -688,9 +688,10 @@ Current tax-safe adapters:
 | 7 | SheriffV2 | `0xBDB3EB0355981500f58C9bc77c3E61762844A146` |
 | 10 | CatnipV2 | `0x5b2Ca358d56490Dc86224D502522314De7707237` |
 | 11 | PancakeSwapV2 | `0x3B6e71A59553143937Fef74a7B50AFD24528786E` |
-| 15 | GigaV2 | `0xa379c7D17F7fEe735773879D4069886B117AB54a` |
-| 17 | Flap | `0x6af2A4475C44d5833575150Bf7C3D3FE6Bf4F344` |
-| 19 | RamsesV2 | `0x5fe3b873c222e76f7630b40052f07ee06196E6d3` |
+| 13 | RobinSwapV2 | `0xF694145F104c3C24f723301e160D2Ccf0Db31FE6` |
+| 16 | GigaV2 | `0xa379c7D17F7fEe735773879D4069886B117AB54a` |
+| 18 | Flap | `0x6af2A4475C44d5833575150Bf7C3D3FE6Bf4F344` |
+| 20 | RamsesV2 | `0x5fe3b873c222e76f7630b40052f07ee06196E6d3` |
 
 ```ts
 const TAX_SAFE_ADAPTERS = new Set([
@@ -699,6 +700,7 @@ const TAX_SAFE_ADAPTERS = new Set([
   "0xbdb3eb0355981500f58c9bc77c3e61762844a146",
   "0x5b2ca358d56490dc86224d502522314de7707237",
   "0x3b6e71a59553143937fef74a7b50afd24528786e",
+  "0xf694145f104c3c24f723301e160d2ccf0db31fe6",
   "0xa379c7d17f7fee735773879d4069886b117ab54a",
   "0x6af2a4475c44d5833575150bf7c3d3fe6bf4f344",
   "0x5fe3b873c222e76f7630b40052f07ee06196e6d3",
@@ -1039,18 +1041,24 @@ Current Robinhood router adapters:
 | 10 | CatnipV2 | `0x5b2Ca358d56490Dc86224D502522314De7707237` | Yes |
 | 11 | PancakeSwapV2 | `0x3B6e71A59553143937Fef74a7B50AFD24528786E` | Yes |
 | 12 | PancakeSwapV3 | `0xD2Adac87bab4f0f99CF2a21c552c88d1C9825cCC` | No |
-| 13 | RobinSwapV3 | `0x798f77D63b46b0E019de206E111e5ea5CC16BEc8` | No |
-| 14 | SushiSwapV3 | `0xca3EA0Fd6E31f94c81B6586836790adE638313ED` | No |
-| 15 | GigaV2 | `0xa379c7D17F7fEe735773879D4069886B117AB54a` | Yes |
-| 16 | GigaV3 | `0xcAa612CDe3d3FbE97Be97eB5f79BC91597432d55` | No |
-| 17 | Flap | `0x6af2A4475C44d5833575150Bf7C3D3FE6Bf4F344` | Yes |
-| 18 | RamsesV3 | `0xdBf182774C60932c6fe1Bf3FFaB8Ca28CCb0dC17` | No |
-| 19 | RamsesV2 | `0x5fe3b873c222e76f7630b40052f07ee06196E6d3` | Yes |
+| 13 | RobinSwapV2 | `0xF694145F104c3C24f723301e160D2Ccf0Db31FE6` | Yes |
+| 14 | RobinSwapV3 | `0x798f77D63b46b0E019de206E111e5ea5CC16BEc8` | No |
+| 15 | SushiSwapV3 | `0xca3EA0Fd6E31f94c81B6586836790adE638313ED` | No |
+| 16 | GigaV2 | `0xa379c7D17F7fEe735773879D4069886B117AB54a` | Yes |
+| 17 | GigaV3 | `0xcAa612CDe3d3FbE97Be97eB5f79BC91597432d55` | No |
+| 18 | Flap | `0x6af2A4475C44d5833575150Bf7C3D3FE6Bf4F344` | Yes |
+| 19 | RamsesV3 | `0xdBf182774C60932c6fe1Bf3FFaB8Ca28CCb0dC17` | No |
+| 20 | RamsesV2 | `0x5fe3b873c222e76f7630b40052f07ee06196E6d3` | Yes |
 
 PancakeSwap V3 was deployed in
 [`0xa82a...cfa8`](https://robinhoodchain.blockscout.com/tx/0xa82a53e8e32e7a26be720d62e157c820e8c25ccbb3826e604435480606e0cfa8)
 and inserted at index `12` in router update
 [`0xae59...94b5`](https://robinhoodchain.blockscout.com/tx/0xae5949bad45dfbdcd930a2fd39e5fb22914b51704f8c7b137f996a154e8d94b5).
+
+RobinSwap V2 was deployed in
+[`0x2263...d1cc`](https://robinhoodchain.blockscout.com/tx/0x22633d0c9be2f117474bb7993d037c3b9b9f568a9e91b738fbd32cc0b5ddd1cc)
+and inserted immediately before RobinSwap V3 in router update
+[`0x093a...96fb`](https://robinhoodchain.blockscout.com/tx/0x093a2f30536b362f238bd23c79c8c4cd1d6e0f561aba9b76bb108713759896fb).
 
 Adapter registration can change. Refresh the router registry and adapter
 metadata before route construction.
