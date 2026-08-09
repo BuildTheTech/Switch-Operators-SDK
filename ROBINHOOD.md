@@ -688,9 +688,9 @@ Current tax-safe adapters:
 | 7 | SheriffV2 | `0xBDB3EB0355981500f58C9bc77c3E61762844A146` |
 | 10 | CatnipV2 | `0x5b2Ca358d56490Dc86224D502522314De7707237` |
 | 11 | PancakeSwapV2 | `0x3B6e71A59553143937Fef74a7B50AFD24528786E` |
-| 14 | GigaV2 | `0xa379c7D17F7fEe735773879D4069886B117AB54a` |
-| 16 | Flap | `0x6af2A4475C44d5833575150Bf7C3D3FE6Bf4F344` |
-| 18 | RamsesV2 | `0x5fe3b873c222e76f7630b40052f07ee06196E6d3` |
+| 15 | GigaV2 | `0xa379c7D17F7fEe735773879D4069886B117AB54a` |
+| 17 | Flap | `0x6af2A4475C44d5833575150Bf7C3D3FE6Bf4F344` |
+| 19 | RamsesV2 | `0x5fe3b873c222e76f7630b40052f07ee06196E6d3` |
 
 ```ts
 const TAX_SAFE_ADAPTERS = new Set([
@@ -1028,7 +1028,7 @@ Current Robinhood router adapters:
 | ---: | --- | --- | :---: |
 | 0 | UniswapV2 | `0x7a14d7A8509a66209D4332843b983b29bF5604A4` | Yes |
 | 1 | UniswapV3 | `0xbcA08f296d9Ba0dc19Aa0E05D355365cE29A3205` | No |
-| 2 | UniswapV4 | `0x754dDCD05aFbAd1cc7Bc42B9268EB586F579E7F6` | No |
+| 2 | UniswapV4 | `0xB9885d3C55e79499bf887F2fBe445e01A8cFFf1c` | No |
 | 3 | SwitchLimitOrders | `0x412F625072c10e58C619D1e0b3C95cd3d5689871` | No |
 | 4 | SwapHoodV2 | `0x6D8746f02e52944c13824fA691c6f4186E463354` | Yes |
 | 5 | SwapHoodV3 | `0x9645dE0AcB48F0AAefdBEb423F0558457907DE98` | No |
@@ -1038,17 +1038,24 @@ Current Robinhood router adapters:
 | 9 | AeonAlgebra | `0x20615954FB87360139e7DdDB519359498EbD1904` | No |
 | 10 | CatnipV2 | `0x5b2Ca358d56490Dc86224D502522314De7707237` | Yes |
 | 11 | PancakeSwapV2 | `0x3B6e71A59553143937Fef74a7B50AFD24528786E` | Yes |
-| 12 | RobinSwapV3 | `0x798f77D63b46b0E019de206E111e5ea5CC16BEc8` | No |
-| 13 | SushiSwapV3 | `0xca3EA0Fd6E31f94c81B6586836790adE638313ED` | No |
-| 14 | GigaV2 | `0xa379c7D17F7fEe735773879D4069886B117AB54a` | Yes |
-| 15 | GigaV3 | `0xcAa612CDe3d3FbE97Be97eB5f79BC91597432d55` | No |
-| 16 | Flap | `0x6af2A4475C44d5833575150Bf7C3D3FE6Bf4F344` | Yes |
-| 17 | RamsesV3 | `0xdBf182774C60932c6fe1Bf3FFaB8Ca28CCb0dC17` | No |
-| 18 | RamsesV2 | `0x5fe3b873c222e76f7630b40052f07ee06196E6d3` | Yes |
+| 12 | PancakeSwapV3 | `0xD2Adac87bab4f0f99CF2a21c552c88d1C9825cCC` | No |
+| 13 | RobinSwapV3 | `0x798f77D63b46b0E019de206E111e5ea5CC16BEc8` | No |
+| 14 | SushiSwapV3 | `0xca3EA0Fd6E31f94c81B6586836790adE638313ED` | No |
+| 15 | GigaV2 | `0xa379c7D17F7fEe735773879D4069886B117AB54a` | Yes |
+| 16 | GigaV3 | `0xcAa612CDe3d3FbE97Be97eB5f79BC91597432d55` | No |
+| 17 | Flap | `0x6af2A4475C44d5833575150Bf7C3D3FE6Bf4F344` | Yes |
+| 18 | RamsesV3 | `0xdBf182774C60932c6fe1Bf3FFaB8Ca28CCb0dC17` | No |
+| 19 | RamsesV2 | `0x5fe3b873c222e76f7630b40052f07ee06196E6d3` | Yes |
+
+PancakeSwap V3 was deployed in
+[`0xa82a...cfa8`](https://robinhoodchain.blockscout.com/tx/0xa82a53e8e32e7a26be720d62e157c820e8c25ccbb3826e604435480606e0cfa8)
+and inserted at index `12` in router update
+[`0xae59...94b5`](https://robinhoodchain.blockscout.com/tx/0xae5949bad45dfbdcd930a2fd39e5fb22914b51704f8c7b137f996a154e8d94b5).
 
 Adapter registration can change. Refresh the router registry and adapter
 metadata before route construction.
 
+For PancakeSwap V3, select from fee tiers `100`, `500`, `2500`, and `10000`.
 For Ramses V3, select from tick spacings `1`, `5`, `10`, `50`, `100`, and `200`
 and store the winner in the route leg's `fee` field; do not treat that value as
 a fixed fee percentage. GIGA V2 and Ramses V2 both use each selected pair's
