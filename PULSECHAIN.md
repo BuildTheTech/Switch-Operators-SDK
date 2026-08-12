@@ -85,14 +85,23 @@ The contract enforces `minAmountOut` for the maker — everything above that is 
 | **SwitchLimitOrder** | `0x8e3881bdF81Fc0211383B2e576076B654F7aFD86` |
 | **SwitchPLSFlow** | `0x88c9e2C83b6B7c707602e548481e58E920694E64` |
 | **Finvesta V3 adapter (index 20)** | `0x012c44d0C465819eF3CeAC208e0c1B272087a8b4` |
+| **Trench V2 direct-pair adapter (index 21)** | `0xAf48bb0936D9fA522650236917321D89978A8591` |
+| **Trench V3 adapter (index 22)** | `0x01957eC5FCC079f1bB388b9f261278daC42cf2E9` |
 
 Chain: **PulseChain** (ID `369`) &nbsp;|&nbsp; Fee denominator: `10000` (basis points)
 
 Finvesta uses a Liberty-style V3 factory at
 `0x7f5c7C5144b4B4c6e954A5b2D75C318C5467EFDc`. For normal-token routes, the
 backend and limit-order bot evaluate fee tiers `100`, `500`, `2500`, and
-`10000`. Fetch `/swap/adapters?network=pulsechain` at runtime rather than
-assuming index `20` will remain the final adapter.
+`10000`.
+
+Trench V2 uses factory `0xA024e4574406BEf89e624c75758c700B5bED27C7`,
+reads pair-specific fees dynamically, and sends input directly to the pair. It
+is safe for transfer-tax-sensitive first and last hops. Trench V3 uses factory
+`0xCAeF0a906F3323595A8faA14DF7eDee6F59220af` and fee tiers `100`, `500`,
+`2500`, `3000`, and `10000`; it is not transfer-tax safe. Fetch
+`/swap/adapters?network=pulsechain` at runtime rather than assuming index `22`
+will remain the final adapter.
 
 > **⚠️ Important:** The SwitchLimitOrder address above is the **current** default. The contract may be redeployed (e.g. when the router is upgraded). Each order returned by the API includes a `limitOrderContract` field — **always call `fillOrder` / `directFillOrder` on the contract address from the order, not a hardcoded constant.** This ensures your bot works seamlessly across contract versions without code changes. See the [config endpoint](#config-endpoint) for dynamic discovery.
 
@@ -558,6 +567,8 @@ UniswapV2-style adapters work differently: tokens are transferred to the pair fi
 | PulseXV2 | V2 direct pair |
 | 9inchV2 | V2 direct pair |
 | DextopV2 | V2 direct pair |
+| 9mmV2 | V2 direct pair |
+| TrenchV2 | Variable-fee V2 direct pair |
 
 **Unsafe for first hop with tax tokens:**
 
@@ -569,6 +580,7 @@ UniswapV2-style adapters work differently: tokens are transferred to the pair fi
 | pDexV3 | V3 callback | Double sell tax via callback |
 | DextopV3 | V3 callback | Double sell tax via callback |
 | FinvestaV3 | Liberty-style V3 callback | Double sell tax via callback |
+| TrenchV3 | V3 callback | Double sell tax via callback |
 | Phux | Curve-style | Not designed for tax tokens |
 | Tide | Curve-style | Not designed for tax tokens |
 | PulseXStable | Curve-style | Not designed for tax tokens |
@@ -585,6 +597,8 @@ function isFirstHopSafe(adapterAddress: string, tokenInSellTaxBps: number): bool
     "0x393e382520b93b8f662dc76295000930c06d689f", // PulseXV2
     "0x4810beadf72a1f297f4e5ff71424d98b2bf4441e", // 9inchV2
     "0xd096faccdd475f2c86f3c668958fcd435e32bdc2", // DextopV2
+    "0x67a25e62309e39e7b46f3b6f868bcf336c4ce8e2", // 9mmV2
+    "0xaf48bb0936d9fa522650236917321d89978a8591", // TrenchV2
   ].map(a => a.toLowerCase()));
 
   return V2_ADAPTERS.has(adapterAddress.toLowerCase());
@@ -620,6 +634,8 @@ UniswapV2-style adapters work differently: the pair sends tokens **directly to t
 | PulseXV2 | V2 direct pair | Pair → recipient (1 transfer) |
 | 9inchV2 | V2 direct pair | Pair → recipient (1 transfer) |
 | DextopV2 | V2 direct pair | Pair → recipient (1 transfer) |
+| 9mmV2 | V2 direct pair | Pair → recipient (1 transfer) |
+| TrenchV2 | Variable-fee V2 direct pair | Pair → recipient (1 transfer) |
 
 **Unsafe for last hop with buy-tax output:**
 
@@ -631,6 +647,7 @@ UniswapV2-style adapters work differently: the pair sends tokens **directly to t
 | pDexV3 | V3 callback | Pool → adapter → recipient (2 buy-tax hits) |
 | DextopV3 | V3 callback | Pool → adapter → recipient (2 buy-tax hits) |
 | FinvestaV3 | Liberty-style V3 callback | Pool → adapter → recipient (2 buy-tax hits) |
+| TrenchV3 | V3 callback | Pool → adapter → recipient (2 buy-tax hits) |
 | PulseXStable | Curve-style | Pool → adapter → recipient (2 buy-tax hits) |
 | Phux | Curve-style | Vault → adapter → recipient (2 buy-tax hits) |
 | Tide | Curve-style | Vault → adapter → recipient (2 buy-tax hits) |
@@ -643,12 +660,14 @@ function isLastHopSafe(adapterAddress: string, tokenOutBuyTaxBps: number): boole
 
   // V2-style adapters (safe for buy-tax output on last hop)
   const V2_ADAPTERS = new Set([
-    "0x...", // UniswapV2  — replace with actual adapter addresses
-    "0x...", // SushiV2
-    "0x...", // PulseXV1
-    "0x...", // PulseXV2
-    "0x...", // 9inchV2
-    "0x...", // DextopV2
+    "0x971eeb4a5080834f7df2b9d7a11dfbeaa7bc187e", // UniswapV2
+    "0x5ef53d5eb4f011d9bed35e7112945f0dc96b3822", // SushiV2
+    "0x6f5ccfca1f1d3fff70202463df05573cc1668cb6", // PulseXV1
+    "0x393e382520b93b8f662dc76295000930c06d689f", // PulseXV2
+    "0x4810beadf72a1f297f4e5ff71424d98b2bf4441e", // 9inchV2
+    "0xd096faccdd475f2c86f3c668958fcd435e32bdc2", // DextopV2
+    "0x67a25e62309e39e7b46f3b6f868bcf336c4ce8e2", // 9mmV2
+    "0xaf48bb0936d9fa522650236917321d89978a8591", // TrenchV2
   ].map(a => a.toLowerCase()));
 
   return V2_ADAPTERS.has(adapterAddress.toLowerCase());
