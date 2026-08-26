@@ -19,10 +19,14 @@ RPC requirements are chain-specific.
 
 - Include `network=pulsechain` or `network=robinhood` on every orderbook and
   config request.
-- Fetch `/limit-orders/config` at startup and support every returned contract
-  deployment.
-- Fill, simulate, and check nonces against each order's own
-  `limitOrderContract`.
+- Fetch `/limit-orders/config` at startup. Public operators must quote and fill
+  only the response's current `limitOrderContract` and `plsFlowContract`.
+  Historical arrays are for cancellation, indexing, and trusted drain tooling.
+- After applying that allowlist, fill, simulate, and check nonces against each
+  order's own `limitOrderContract`.
+- Read the current fee and protection configuration on-chain. Both networks
+  currently use a 30 bps limit-order fee, a 5% route-surplus cap, and a
+  fail-closed 95%-of-market direct-fill floor.
 - Treat all route and tax information as time-sensitive and simulate the exact
   transaction immediately before broadcast.
 
@@ -32,11 +36,11 @@ The network-aware helper package is published as
 [`@switch-win/sdk`](https://www.npmjs.com/package/@switch-win/sdk):
 
 ```bash
-npm install @switch-win/sdk@^1.2.4 ethers
+npm install @switch-win/sdk@^1.2.8 ethers
 ```
 
-Use `@switch-win/sdk` version `1.2.4` or newer for the current four-field route
-leg ABI and Robinhood adapter metadata. This repository contains the operator
+Use `@switch-win/sdk` version `1.2.8` or newer for the protected deployment
+addresses, current ABIs, fee constants, and Robinhood adapter metadata. This repository contains the operator
 integration documentation; it is not a separate npm package.
 
 ## Support

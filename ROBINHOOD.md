@@ -82,11 +82,13 @@ ON-CHAIN
 
 | Contract | Address |
 | --- | --- |
-| **SwitchRouter** | `0x8730C3e2cF2c8CDa8E6166837A1Ed26f46aa9E59` |
-| **SwitchRouterViewV2** | `0xFF6b56d3F444eB5b7FA1db047F57140C84810376` |
-| **SwitchLimitOrder** | `0x752c50DDd3B426cAE3D7A995F313Ac74ac6B0230` |
-| **Native ETH flow** | `0x029FfC6aF9112eA078f1D6f4a98826DDB2136cf6` |
-| **Limit-order adapter** (router index `3`) | `0x412F625072c10e58C619D1e0b3C95cd3d5689871` |
+| **SwitchRouter** | `0x8b2bBdF41C1486b3482bD0e9603d72f012EE8599` |
+| **Legacy SwitchRouterViewV2** (bound to the legacy Router) | `0xFF6b56d3F444eB5b7FA1db047F57140C84810376` |
+| **SwitchLimitOrder** | `0x1E05115387f314398bbb1A808B25308E71150396` |
+| **Native ETH flow** | `0x8170a3B0e2FD2e4333E0Ca9c9414B2D3dd6aF689` |
+| **SwitchDirectFillQuoter** | `0x77b246C127c3c501Ec2836A2B53B555208b30B44` |
+| **Limit-order adapter** (index 3) | `0xb13CC4C37e1C609617C51B5dCDf8e4Ae5721Faa4` |
+| **Legacy limit-order adapter** (legacy Router index 3) | `0x412F625072c10e58C619D1e0b3C95cd3d5689871` |
 | **WETH** | `0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73` |
 
 Chain: **Robinhood Chain** (`4663`) | Fee denominator: `10000` basis points.
@@ -101,12 +103,19 @@ router from the order contract and use adapters registered on that router. The
 fill transaction target is the order's SwitchLimitOrder, never a swap quote's
 `tx.to` address.
 
-Core contract state verified July 19, 2026; adapter registry verified August 2,
-2026:
+Core contract state and adapter registry verified August 25, 2026:
 
-- `SwitchLimitOrder.getFee()` returns `10` bps (`0.10%`).
+- `SwitchLimitOrder.getFee()` returns `30` bps (`0.30%`).
 - `SwitchRouter.MIN_FEE()` returns `10` bps and `MAX_FEE()` returns `100` bps.
+- The current LO is exempt from the Router's regular-swap fee, so a limit-order
+  fill pays the LO's 30 bps fee rather than an additional Router fee.
+- `MAX_OPERATOR_EXCESS_BPS()` returns `500` (5%).
 - `operatorGateEnabled()` returns `true`.
+
+Public operators must evaluate and fill only orders whose
+`limitOrderContract` is the current SwitchLimitOrder above. Legacy addresses
+remain in config for cancellation, indexing, and migration history; public
+operator access is not granted on them.
 
 Read these values on-chain instead of treating them as permanent constants.
 
@@ -193,10 +202,10 @@ example sells `0.01` WETH for at least `30` USDG (USDG has 6 decimals):
       "tokenInBuyTaxBps": 0,
       "tokenOutSellTaxBps": 0,
       "tokenOutBuyTaxBps": 0,
-      "limitOrderContract": "0x752c50ddd3b426cae3d7a995f313ac74ac6b0230",
-      "sourceContract": "0x752c50ddd3b426cae3d7a995f313ac74ac6b0230",
+      "limitOrderContract": "0x1e05115387f314398bbb1a808b25308e71150396",
+      "sourceContract": "0x1e05115387f314398bbb1a808b25308e71150396",
       "orderType": "limitOrder",
-      "contractVersion": "v1"
+      "contractVersion": "v2"
     }
   ]
 }
@@ -222,25 +231,29 @@ Current response:
 
 ```json
 {
-  "limitOrderContract": "0x752c50ddd3b426cae3d7a995f313ac74ac6b0230",
+  "limitOrderContract": "0x1e05115387f314398bbb1a808b25308e71150396",
   "allLimitOrderContracts": [
+    "0x1e05115387f314398bbb1a808b25308e71150396",
     "0x752c50ddd3b426cae3d7a995f313ac74ac6b0230"
   ],
   "allPlsFlowContracts": [
+    "0x8170a3b0e2fd2e4333e0ca9c9414b2d3dd6af689",
     "0x029ffc6af9112ea078f1d6f4a98826ddb2136cf6"
   ],
-  "plsFlowContract": "0x029ffc6af9112ea078f1d6f4a98826ddb2136cf6",
+  "plsFlowContract": "0x8170a3b0e2fd2e4333e0ca9c9414b2d3dd6af689",
   "limitOrderContractVersions": {
+    "0x1e05115387f314398bbb1a808b25308e71150396": "v2",
     "0x752c50ddd3b426cae3d7a995f313ac74ac6b0230": "v1"
   },
   "plsFlowContractVersions": {
+    "0x8170a3b0e2fd2e4333e0ca9c9414b2d3dd6af689": "v2",
     "0x029ffc6af9112ea078f1d6f4a98826ddb2136cf6": "v1"
   },
   "eip712Domain": {
     "name": "SwitchLimitOrder",
     "version": "2",
     "chainId": 4663,
-    "verifyingContract": "0x752c50DDd3B426cAE3D7A995F313Ac74ac6B0230"
+    "verifyingContract": "0x1E05115387f314398bbb1A808B25308E71150396"
   }
 }
 ```
@@ -251,8 +264,10 @@ The API retains the legacy field names `plsFlowContract` and
 ### Polling Strategy
 
 - Poll every 10 to 30 seconds and page until all active orders are processed.
-- Refresh config periodically and accept every contract in
-  `allLimitOrderContracts` and `allPlsFlowContracts`.
+- Refresh config periodically. Fill only `limitOrderContract` and accept native
+  orders only from `plsFlowContract`. Use the `all*Contracts` arrays for
+  cancellation, historical indexing, and migration visibility—not as a public
+  operator fill allowlist.
 - Use `/limit-orders/pairs` to focus routing work on active pairs.
 - Re-evaluate same-pair orders after a fill because pool state changed.
 - Treat API status as an index hint; confirm the nonce on-chain before sending.
@@ -271,7 +286,7 @@ For every fill:
 4. For ERC-20 orders, verify maker balance and allowance:
    - `feeOnOutput == false`: allowance to the per-order LO.
    - `feeOnOutput == true`: allowance to the LO's `SWITCH_ROUTER()`.
-5. Confirm your operator wallet has `OPERATOR_ROLE` on every active LO when
+5. Confirm your operator wallet has `OPERATOR_ROLE` on the current LO when
    `operatorGateEnabled()` is true.
 6. Resolve the router from `SWITCH_ROUTER()` and use only its approved adapters.
 7. Read the current fee and simulate the exact transaction at the latest block.
@@ -279,7 +294,7 @@ For every fill:
 ```ts
 const OPERATOR_ROLE = ethers.id("OPERATOR_ROLE");
 
-for (const loAddress of config.allLimitOrderContracts) {
+for (const loAddress of [config.limitOrderContract]) {
   const lo = new ethers.Contract(loAddress, LO_ABI, provider);
   if (await lo.operatorGateEnabled()) {
     const allowed = await lo.hasRole(OPERATOR_ROLE, operator.address);
@@ -307,7 +322,7 @@ the user who deposited ETH.
 
 ```ts
 const nativeFlow = new ethers.Contract(apiOrder.sourceContract, [
-  "function getOrder(uint256 nonce) view returns (tuple(address maker,address tokenIn,address tokenOut,uint256 amountIn,uint256 minAmountOut,uint256 deadline,uint256 nonce,bool feeOnOutput,address recipient,bool unwrapOutput,address partnerAddress))",
+  "function getOrder(uint256 nonce) view returns (tuple(address originalMaker,address tokenOut,uint256 amountIn,uint256 minAmountOut,uint256 deadline,uint256 createdAt,bool feeOnOutput,bool unwrapOutput,bool active,address recipient,address partnerAddress))",
 ], provider);
 
 const isNative = config.allPlsFlowContracts.some(
@@ -322,11 +337,10 @@ if (isNative) {
 }
 ```
 
-For the current v1 native flow, `active` and `totalLockedWPLS` storage can
-remain stale after a successful fill. The authoritative checks are
-`isNonceUsed(flowAddress, nonce)` on the target LO and the flow's real WETH
-balance. The legacy storage name `totalLockedWPLS` is retained by the deployed
-ABI even though the Robinhood asset is WETH.
+For the current v2 native flow, use the on-chain order tuple and
+`isNonceUsed(flowAddress, nonce)` on the current LO as authoritative checks.
+The legacy storage name `totalLockedWPLS` is retained by the ABI even though
+the Robinhood asset is WETH.
 
 For native-flow route fills with `excessOnInput=false`, route the full
 executable input: the full `amountIn` for output-fee orders, or the maximum
@@ -369,6 +383,11 @@ function fillOrder(
 Profit is either unrouted input (`excessOnInput=true`) or output above the
 maker requirement (`excessOnInput=false`).
 
+The protected LO caps operator-retained route surplus at 5%: input-side profit
+is capped at 5% of executable input and output-side profit at 5% of the signed
+`minAmountOut`. Any additional improvement is delivered or refunded to the
+maker.
+
 ### Direct Fill (`directFillOrder`)
 
 You supply output tokens and receive the maker's input without a DEX route.
@@ -382,17 +401,16 @@ function directFillOrder(
 ) external;
 ```
 
-`outputAmount` must leave the maker at least `minAmountOut` after output fees
-and transfer taxes. For an untaxed output-fee order, round up:
-
-```ts
-const outputAmount =
-  (order.minAmountOut * 10_000n + (10_000n - feeBps) - 1n) /
-  (10_000n - feeBps);
-```
+`outputAmount` must leave the maker at least the protected floor after output
+fees and transfer taxes. The contract obtains a direct-adapter quote through
+`directFillQuoter()` and requires the maker to receive the greater of the
+signed `minAmountOut` and 95% of that quote. A missing or zero quote fails
+closed. For an untaxed output-fee order, first calculate and then gross up the
+protected floor as shown in the direct-fill example below.
 
 For a taxed output, calculate against observed balance deltas and add a safety
-margin. Your direct-fill profit is input received minus output spent and gas.
+margin. All post-fee output above the protected floor goes to the maker. Your
+direct-fill profit is input received minus output spent and gas.
 
 ### Approval Requirements
 
@@ -402,8 +420,8 @@ margin. Your direct-fill profit is input received minus output spent and gas.
 | Operator, direct fill | Approves the order's LO for tokenOut | Approves the order's LO for tokenOut |
 | Operator, route fill | No token approval for the route itself | Input-side excess may require special LO allowance; simulate |
 
-Do not approve only the current default LO if an order points to an older
-supported contract.
+Public operators should reject orders pointing to an older LO. Approve the
+current LO for direct-fill output tokens.
 
 ### Always Simulate First
 
@@ -479,13 +497,29 @@ const receipt = await (
 
 ```ts
 const feeBps = BigInt(await lo.getFee());
-let outputAmount = order.minAmountOut;
+const quoter = new ethers.Contract(await lo.directFillQuoter(), [
+  "function quoteExactInput(uint256,address,address) view returns (uint256)",
+], provider);
+const outToken = order.unwrapOutput ? await lo.WNATIVE() : order.tokenOut;
+const quoteInput = order.feeOnOutput
+  ? order.amountIn
+  : order.amountIn - (order.amountIn * feeBps) / 10_000n;
+const fairQuote = await quoter.quoteExactInput(quoteInput, order.tokenIn, outToken);
+const marketFloor = (fairQuote * 9_500n + 9_999n) / 10_000n;
+const protectedFloor = order.minAmountOut > marketFloor
+  ? order.minAmountOut
+  : marketFloor;
+
+let outputAmount = protectedFloor;
 
 if (order.feeOnOutput) {
   outputAmount =
-    (order.minAmountOut * 10_000n + (10_000n - feeBps) - 1n) /
+    (protectedFloor * 10_000n + (10_000n - feeBps) - 1n) /
     (10_000n - feeBps);
 }
+
+// For taxed input/output tokens, use balance-delta-aware estimates, oversend
+// as needed, and rely on the exact staticCall below as the final gate.
 
 const outputToken = new ethers.Contract(order.tokenOut, ERC20_ABI, signer);
 await (await outputToken.approve(await lo.getAddress(), outputAmount)).wait();
@@ -889,6 +923,13 @@ For a taxed pair, validate all legs in all three examples with
 | `0x672215de` | `InvalidTokens()` | Zero or identical tokens | Reject order |
 | `0x90b8ec18` | `TransferFailed()` | Balance, allowance, tax, or token rule changed | Repeat pre-flight and simulate |
 | `0xae5e3e00` | `OperatorOnly()` | Caller lacks role while gate is enabled | Obtain role on this LO |
+| `0x42e89a78` | `NativeFlowInputNotFullyConsumed()` | Native-flow output-surplus route leaves input unconsumed | Route the full executable input |
+| `0x54346455` | `RouteTokenInMismatch()` | Route does not begin with the signed input token | Rebuild the route |
+| `0xa587e83b` | `RouteTokenOutMismatch()` | Route does not end with the signed output token | Rebuild the route |
+| `0xdcd56106` | `InvalidDirectFillQuoter()` | Admin supplied an incompatible quoter | Stop direct fills and report configuration |
+| `0x0e4c7aa9` | `DirectFillQuoteUnavailable()` | Protected direct quote is unavailable or zero | Defer direct fill; do not bypass the floor |
+| `0xca8ecf0e` | `DirectFillPriceTooLow()` | Maker would receive less than the protected floor | Increase `outputAmount` or skip |
+| `0xb68f3df5` | `OperatorManagerOnly()` | Caller cannot manage operator access | Use admin or configured operator manager |
 
 For a native-flow order with `InvalidSignature`, first compare the API order
 to `sourceContract.getOrder(nonce)`. The empty signature is validated through
@@ -933,6 +974,13 @@ const ERROR_BY_SELECTOR: Record<string, string> = {
   "0x672215de": "InvalidTokens",
   "0x90b8ec18": "TransferFailed",
   "0xae5e3e00": "OperatorOnly",
+  "0x42e89a78": "NativeFlowInputNotFullyConsumed",
+  "0x54346455": "RouteTokenInMismatch",
+  "0xa587e83b": "RouteTokenOutMismatch",
+  "0xdcd56106": "InvalidDirectFillQuoter",
+  "0x0e4c7aa9": "DirectFillQuoteUnavailable",
+  "0xca8ecf0e": "DirectFillPriceTooLow",
+  "0xb68f3df5": "OperatorManagerOnly",
   "0x025dbdd4": "InsufficientFee",
   "0x4a2ab023": "FinalAmountOutTooLow",
   "0x5725cad2": "EmptySplit",
@@ -963,7 +1011,10 @@ function matchErrorSelector(revertData?: string): string | undefined {
 function canFillOrder(LimitOrder calldata order, bytes calldata signature) external view returns (bool);
 function isNonceUsed(address maker, uint256 nonce) external view returns (bool);
 function getFee() external view returns (uint256);
+function MAX_OPERATOR_EXCESS_BPS() external view returns (uint256);
+function directFillQuoter() external view returns (address);
 function SWITCH_ROUTER() external view returns (address);
+function WNATIVE() external view returns (address);
 function operatorGateEnabled() external view returns (bool);
 function hasRole(bytes32 role, address account) external view returns (bool);
 function domainSeparator() external view returns (bytes32);
@@ -989,17 +1040,18 @@ event OrderFilled(
 event NonceCancelled(address indexed maker, uint256 indexed nonce);
 ```
 
-Native-flow cancellation is emitted by the order's source flow. Index events
-from every contract returned by the config endpoint, not only current defaults.
+Native-flow cancellation is emitted by the order's source flow. Public fill
+workers should index current contracts for actionable orders; archival systems
+may index every contract returned by config.
 
 ### ABIs
 
 The npm package is [`@switch-win/sdk`](https://www.npmjs.com/package/@switch-win/sdk).
-Use version `1.2.4` or newer for the current four-field route leg ABI and
+Use version `1.2.8` or newer for the protected deployments, current ABIs, and
 Robinhood adapter metadata:
 
 ```bash
-npm install @switch-win/sdk@^1.2.4
+npm install @switch-win/sdk@^1.2.8
 ```
 
 The package/repository supplies the SwitchLimitOrder and SwitchRouter ABIs.
@@ -1015,7 +1067,7 @@ The current default domain is:
   "name": "SwitchLimitOrder",
   "version": "2",
   "chainId": 4663,
-  "verifyingContract": "0x752c50DDd3B426cAE3D7A995F313Ac74ac6B0230"
+  "verifyingContract": "0x1E05115387f314398bbb1A808B25308E71150396"
 }
 ```
 
@@ -1031,7 +1083,7 @@ Current Robinhood router adapters:
 | 0 | UniswapV2 | `0x7a14d7A8509a66209D4332843b983b29bF5604A4` | Yes |
 | 1 | UniswapV3 | `0xbcA08f296d9Ba0dc19Aa0E05D355365cE29A3205` | No |
 | 2 | UniswapV4 | `0xB9885d3C55e79499bf887F2fBe445e01A8cFFf1c` | No |
-| 3 | SwitchLimitOrders | `0x412F625072c10e58C619D1e0b3C95cd3d5689871` | No |
+| 3 | SwitchLimitOrders | `0xb13CC4C37e1C609617C51B5dCDf8e4Ae5721Faa4` | No |
 | 4 | SwapHoodV2 | `0x6D8746f02e52944c13824fA691c6f4186E463354` | Yes |
 | 5 | SwapHoodV3 | `0x9645dE0AcB48F0AAefdBEb423F0558457907DE98` | No |
 | 6 | Up33 | `0x388179D2FB0ABcE9b03068916aF8a3c4dfD023c8` | No |

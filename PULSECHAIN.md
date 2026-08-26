@@ -77,18 +77,29 @@ The contract enforces `minAmountOut` for the maker — everything above that is 
 
 ## Contract Addresses
 
-> **⚠️ Do not hardcode the SwitchRouter address.** The router contract may be redeployed from time to time. When executing swaps (via `fillOrder` or `directFillOrder`), always use the `tx.to` address returned by the `/bestPath` API response. This ensures your operator bot automatically picks up router upgrades without code changes.
+> **Do not infer the Router from a generic swap quote.** A fill transaction is
+> sent to the order's `limitOrderContract`. Resolve that contract's immutable
+> `SWITCH_ROUTER()` and build routes only from adapters approved by that Router.
 
 | Contract | Address |
 |---|---|
-| **SwitchRouter** | `0x0305fcb5dA680EA6fd1B01A96C1949175B99d406` |
-| **SwitchLimitOrder** | `0x8e3881bdF81Fc0211383B2e576076B654F7aFD86` |
-| **SwitchPLSFlow** | `0x88c9e2C83b6B7c707602e548481e58E920694E64` |
+| **SwitchRouter** | `0x2dFc8B6e13fF7F04e37Ef97006084805D65a6F19` |
+| **SwitchLimitOrder** | `0x2afBf0aB8d958a0227742F7a8BdA00c96372E4D7` |
+| **SwitchPLSFlow** | `0x0362177FF2ad25a33a879c881a5055575C63a4cE` |
+| **SwitchDirectFillQuoter** | `0x23A95b0f69c993CFe6180a266A93F7560102e929` |
+| **Limit-order adapter** (index 17) | `0x7B9761484301a8FE4a2BA47194F7646eEF8e1cDd` |
+| **LimitOrderAdmin** | `0x9C8B9012AfC0489dE612F7039665212EB88be127` |
+| **OperatorAccessRegistry** | `0x7dA1AB04A712479569cCaD783Ca6114b763e36Ad` |
 | **Finvesta V3 adapter (index 20)** | `0x012c44d0C465819eF3CeAC208e0c1B272087a8b4` |
 | **Trench V2 direct-pair adapter (index 21)** | `0xAf48bb0936D9fA522650236917321D89978A8591` |
 | **Trench V3 adapter (index 22)** | `0x01957eC5FCC079f1bB388b9f261278daC42cf2E9` |
 
 Chain: **PulseChain** (ID `369`) &nbsp;|&nbsp; Fee denominator: `10000` (basis points)
+
+Verified on August 25, 2026: regular Router swaps use a 10 bps (`0.10%`)
+minimum fee, limit orders use 30 bps (`0.30%`), and the current LO is
+Router-fee-exempt so those fees are not stacked. The current LO also reports
+`MAX_OPERATOR_EXCESS_BPS() == 500` and `operatorGateEnabled() == true`.
 
 Finvesta uses a Liberty-style V3 factory at
 `0x7f5c7C5144b4B4c6e954A5b2D75C318C5467EFDc`. For normal-token routes, the
@@ -103,7 +114,11 @@ is safe for transfer-tax-sensitive first and last hops. Trench V3 uses factory
 `/swap/adapters?network=pulsechain` at runtime rather than assuming index `22`
 will remain the final adapter.
 
-> **⚠️ Important:** The SwitchLimitOrder address above is the **current** default. The contract may be redeployed (e.g. when the router is upgraded). Each order returned by the API includes a `limitOrderContract` field — **always call `fillOrder` / `directFillOrder` on the contract address from the order, not a hardcoded constant.** This ensures your bot works seamlessly across contract versions without code changes. See the [config endpoint](#config-endpoint) for dynamic discovery.
+The addresses above are the protected public-operator deployment. Existing
+legacy orders remain indexed for history and cancellation, but public operator
+software must filter orders to the current `limitOrderContract` returned by the
+[config endpoint](#config-endpoint). Only a separately authorized trusted drain
+operator should process a legacy contract.
 
 ---
 
@@ -174,7 +189,7 @@ GET https://quote.switch.win/limit-orders?network=pulsechain&status=ACTIVE
       "tokenInBuyTaxBps": 0,
       "tokenOutSellTaxBps": 500,
       "tokenOutBuyTaxBps": 500,
-      "limitOrderContract": "0x8e3881bdf81fc0211383b2e576076b654f7afd86",
+      "limitOrderContract": "0x2afbf0ab8d958a0227742f7a8bda00c96372e4d7",
       "createdAt": "2025-01-01T00:00:00.000Z",
       "updatedAt": "2025-01-01T00:00:00.000Z"
     }
@@ -198,22 +213,36 @@ Response:
 
 ```json
 {
-  "limitOrderContract": "0x8e3881bdf81fc0211383b2e576076b654f7afd86",
-  "plsFlowContract": "0x88c9e2c83b6b7c707602e548481e58e920694e64",
+  "limitOrderContract": "0x2afbf0ab8d958a0227742f7a8bda00c96372e4d7",
+  "allLimitOrderContracts": [
+    "0x2afbf0ab8d958a0227742f7a8bda00c96372e4d7",
+    "0x8e3881bdf81fc0211383b2e576076b654f7afd86",
+    "0x0e884072a891b406c0d814907a1e2310fe5f5deb"
+  ],
+  "plsFlowContract": "0x0362177ff2ad25a33a879c881a5055575c63a4ce",
+  "allPlsFlowContracts": [
+    "0x0362177ff2ad25a33a879c881a5055575c63a4ce",
+    "0xcf5606bdc750d8626cec32ca2e1bb207968db1d5",
+    "0x88c9e2c83b6b7c707602e548481e58e920694e64"
+  ],
   "eip712Domain": {
     "name": "SwitchLimitOrder",
     "version": "2",
     "chainId": 369,
-    "verifyingContract": "0x8e3881bdf81fc0211383b2e576076b654f7afd86"
+    "verifyingContract": "0x2afbf0ab8d958a0227742f7a8bda00c96372e4d7"
   }
 }
 ```
 
-Use this at startup to initialize defaults. For individual orders, always prefer the `limitOrderContract` field from each order object.
+Use this at startup to initialize defaults. Public operators should accept only
+orders whose `limitOrderContract` equals `limitOrderContract` in this response.
+The `all*` arrays exist so wallets and indexers can display and cancel legacy
+orders; they are not a public fill allowlist.
 
 ### Polling Strategy
 
 - Poll every 10–30 seconds
+- Filter public-operator work to the current protected `limitOrderContract`
 - Use `/limit-orders/pairs` to focus on pairs with active orders
 - After filling, re-evaluate same-pair orders (pool state changed)
 
@@ -234,7 +263,7 @@ Or use `canFillOrder(order, signature)` on the order's `limitOrderContract` — 
 
 ### PLSFlow Orders (Native PLS)
 
-Orders where `maker == 0x88c9e2C83b6B7c707602e548481e58E920694E64` are PLSFlow orders (native PLS sold as WPLS). For these:
+Orders where `maker == 0x0362177FF2ad25a33a879c881a5055575C63a4cE` are current PLSFlow orders (native PLS sold as WPLS). For these:
 
 - **Skip** maker allowance checks (PLSFlow has infinite approval)
 - Check `WPLS.balanceOf(PLSFlow)` instead of maker balance
@@ -250,9 +279,9 @@ Orders where `maker == 0x88c9e2C83b6B7c707602e548481e58E920694E64` are PLSFlow o
 > recipient on-chain before filling:
 >
 > ```ts
-> const PLSFLOW = "0x88c9e2C83b6B7c707602e548481e58E920694E64";
+> const PLSFLOW = "0x0362177FF2ad25a33a879c881a5055575C63a4cE";
 > const plsFlow = new ethers.Contract(PLSFLOW, [
->   "function getOrder(uint256 nonce) view returns (tuple(address maker, address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, uint256 deadline, uint256 nonce, bool feeOnOutput, address recipient, bool unwrapOutput, address partnerAddress))",
+>   "function getOrder(uint256 nonce) view returns (tuple(address originalMaker, address tokenOut, uint256 amountIn, uint256 minAmountOut, uint256 deadline, uint256 createdAt, bool feeOnOutput, bool unwrapOutput, bool active, address recipient, address partnerAddress))",
 > ], provider);
 >
 > if (apiOrder.maker.toLowerCase() === PLSFLOW.toLowerCase()) {
@@ -289,6 +318,11 @@ function fillOrder(
 
 Profit comes from routing efficiency — either unrouted input (`excessOnInput=true`) or output surplus (`excessOnInput=false`). See [Profit Strategies](#profit-strategies--excessoninput).
 
+The protected deployment caps operator-retained route surplus at 5%. For
+input-side profit the cap is 5% of executable input; for output-side profit it
+is 5% of the maker's signed `minAmountOut`. Any additional improvement is
+returned to the maker. This cap is enforced on-chain and is not an SDK policy.
+
 ### Direct Fill (`directFillOrder`)
 
 You provide output tokens yourself and receive the maker's input tokens. No routing needed — lowest gas, zero slippage, no DEX dependency.
@@ -302,7 +336,18 @@ function directFillOrder(
 ) external;
 ```
 
-`outputAmount` must be ≥ `minAmountOut`. For `feeOnOutput=true` orders, include fee: `outputAmount = minAmountOut × 10000 / (10000 - fee)`. For tax output tokens with `directToMaker=false`, oversend to cover transfer tax. Works with both `feeOnOutput` modes transparently.
+The current contract also enforces a market-based floor. It quotes the input
+available to the filler through `directFillQuoter()` and requires the maker to
+receive at least the greater of:
+
+- the signed `minAmountOut`; and
+- 95% of the best current direct-adapter quote.
+
+If the quoter cannot produce a nonzero quote, the direct fill fails closed.
+For `feeOnOutput=true`, `outputAmount` must also cover the output fee. For tax
+output tokens with `directToMaker=false`, oversend enough to cover both token
+transfers. Any post-fee output above the protected floor goes to the maker, not
+back to the operator. Always simulate the exact direct fill before submission.
 
 **`directToMaker`** — When `true` and the order has `feeOnOutput=false` and `unwrapOutput=false`, the output is transferred directly from the filler to the recipient in a **single transfer** instead of the usual filler → contract → recipient (2 transfers). This saves one buy tax hit for tax output tokens. Silently ignored when `feeOnOutput=true` (output needs fee deduction at the contract) or `unwrapOutput=true` (output needs unwrapping). For non-tax tokens, pass `false` — both paths behave identically.
 
@@ -373,12 +418,29 @@ await tx.wait();
 // Approve the correct LO contract (use limitOrderContract from the order)
 await outputToken.approve(apiOrder.limitOrderContract, ethers.MaxUint256);
 
-// Calculate output amount
+// Calculate the protected output floor for a non-tax input.
 const fee = await contract.getFee(); // e.g. 30 = 0.30%
-let outputAmount = order.minAmountOut;
+const quoter = new ethers.Contract(await contract.directFillQuoter(), [
+  "function quoteExactInput(uint256,address,address) view returns (uint256)",
+], provider);
+const outToken = order.unwrapOutput ? await contract.WNATIVE() : order.tokenOut;
+const quoteInput = order.feeOnOutput
+  ? order.amountIn
+  : order.amountIn - (order.amountIn * fee) / 10000n;
+const fairQuote = await quoter.quoteExactInput(quoteInput, order.tokenIn, outToken);
+const marketFloor = (fairQuote * 9500n + 9999n) / 10000n;
+const protectedFloor = order.minAmountOut > marketFloor
+  ? order.minAmountOut
+  : marketFloor;
+
+let outputAmount = protectedFloor;
 if (order.feeOnOutput) {
-  outputAmount = (order.minAmountOut * 10000n) / (10000n - fee);
+  outputAmount = (protectedFloor * 10000n + (10000n - fee) - 1n)
+    / (10000n - fee);
 }
+
+// For taxed input/output tokens, use balance-delta-aware estimates, oversend
+// as needed, and rely on the exact staticCall below as the final gate.
 
 // Use directToMaker=true for tax output tokens with feeOnOutput=false
 // This sends output filler → recipient directly (1 transfer, 1 tax hit)
@@ -403,16 +465,22 @@ The `feeOnOutput` flag is set by the maker (baked into the EIP-712 signature). I
 
 **`feeOnOutput=false` (default):** LO contract pulls all `amountIn` from maker → deducts fee from input → approves remainder to Router → Router swaps → output goes to maker. You have full flexibility — choose `excessOnInput=true` or `false`.
 
-**`feeOnOutput=true`:** Router pulls tokens directly from maker to DEX pools via `goSwitchFrom` → output goes to LO contract → fee deducted from output → remainder to maker. Minimizes transfers (critical for tax input tokens). You can only use `excessOnInput=false`.
+**`feeOnOutput=true`:** Router pulls tokens directly from maker to DEX pools via `goSwitchFrom` → output goes to LO contract → fee deducted from output → remainder to maker. Minimizes transfers (critical for tax input tokens). `excessOnInput=false` is the normal mode. `excessOnInput=true` is supported only when the maker has also approved the LO contract to pull the capped input surplus; the standard frontend allowance is Router-only, so operators should normally choose `false`.
 
 ### `excessOnInput` Choices
 
 | `excessOnInput` | You profit in | How | `feeOnOutput=false` | `feeOnOutput=true` |
 |---|---|---|---|---|
-| `true` | tokenIn | Route **less** than `amountIn`; unrouted input sent to you | ✅ | ❌ Reverts |
+| `true` | tokenIn | Route **less** than `amountIn`; capped unrouted input sent to you | ✅ | Allowance-dependent |
 | `false` | tokenOut | DEX output exceeds `minAmountOut`; surplus sent to you | ✅ | ✅ |
 
-**Why `true` reverts with `feeOnOutput=true`:** The LO contract would need to pull excess tokens from the maker, but the maker only approved the Router.
+**Why `true` usually reverts with `feeOnOutput=true`:** The LO contract must
+pull the capped surplus directly from the maker, while the normal order flow
+approves only the Router. Treat this combination as unavailable unless the LO
+allowance and the exact simulation both prove otherwise.
+
+In every route-fill mode, the protected contract limits operator-retained
+surplus to 5%. Excess above that ceiling benefits the maker.
 
 ### Decision Tree
 
@@ -805,6 +873,13 @@ legs: [
 | `0x672215de` | `InvalidTokens()` | `tokenIn == tokenOut` or zero address | Skip order |
 | `0x90b8ec18` | `TransferFailed()` | Transfer failed (revoked allowance, etc.) | Re-check pre-flight |
 | `0xae5e3e00` | `OperatorOnly()` | Caller doesn't have OPERATOR_ROLE (when operator gate enabled) | Need operator role |
+| `0x42e89a78` | `NativeFlowInputNotFullyConsumed()` | Native-flow output-surplus route leaves input unconsumed | Route the full executable input |
+| `0x54346455` | `RouteTokenInMismatch()` | Route does not begin with the signed input token | Rebuild the route |
+| `0xa587e83b` | `RouteTokenOutMismatch()` | Route does not end with the signed output token | Rebuild the route |
+| `0xdcd56106` | `InvalidDirectFillQuoter()` | Admin supplied an incompatible quoter | Stop direct fills and report configuration |
+| `0x0e4c7aa9` | `DirectFillQuoteUnavailable()` | Protected direct quote is unavailable or zero | Defer direct fill; do not bypass the floor |
+| `0xca8ecf0e` | `DirectFillPriceTooLow()` | Maker would receive less than the protected floor | Increase `outputAmount` or skip |
+| `0xb68f3df5` | `OperatorManagerOnly()` | Caller cannot manage operator access | Use admin or configured operator manager |
 
 > **PLSFlow + InvalidSignature:** If a PLSFlow order (`maker == PLSFlow`, `signature == "0x"`) reverts with `InvalidSignature`, the on-chain `recipient` likely differs from the API's `recipient`. Use [on-chain verification](#plsflow-orders-native-pls) to fetch the correct value.
 
@@ -845,6 +920,13 @@ function matchErrorSelector(revertData: string): string | undefined {
     "0x672215de": "InvalidTokens",
     "0x90b8ec18": "TransferFailed",
     "0xae5e3e00": "OperatorOnly",
+    "0x42e89a78": "NativeFlowInputNotFullyConsumed",
+    "0x54346455": "RouteTokenInMismatch",
+    "0xa587e83b": "RouteTokenOutMismatch",
+    "0xdcd56106": "InvalidDirectFillQuoter",
+    "0x0e4c7aa9": "DirectFillQuoteUnavailable",
+    "0xca8ecf0e": "DirectFillPriceTooLow",
+    "0xb68f3df5": "OperatorManagerOnly",
     // SwitchRouter
     "0x025dbdd4": "InsufficientFee",
     "0x4a2ab023": "FinalAmountOutTooLow",
@@ -874,6 +956,12 @@ function matchErrorSelector(revertData: string): string | undefined {
 function canFillOrder(LimitOrder calldata order, bytes calldata signature) external view returns (bool);
 function isNonceUsed(address maker, uint256 nonce) external view returns (bool);
 function getFee() external view returns (uint256);         // basis points, e.g. 30 = 0.30%
+function MAX_OPERATOR_EXCESS_BPS() external view returns (uint256); // 500 = 5%
+function directFillQuoter() external view returns (address);
+function SWITCH_ROUTER() external view returns (address);
+function WNATIVE() external view returns (address);
+function operatorGateEnabled() external view returns (bool);
+function hasRole(bytes32 role, address account) external view returns (bool);
 function domainSeparator() external view returns (bytes32);
 ```
 
@@ -903,7 +991,7 @@ Available in [Switch-SDK](https://github.com/BuildTheTech/Switch-SDK):
   "name": "SwitchLimitOrder",
   "version": "2",
   "chainId": 369,
-  "verifyingContract": "0x0e884072a891b406C0D814907A1E2310fE5F5Deb"
+  "verifyingContract": "0x2afBf0aB8d958a0227742F7a8BdA00c96372E4D7"
 }
 ```
 
