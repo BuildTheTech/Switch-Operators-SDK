@@ -26,6 +26,11 @@ mkdir -p switch-operator-engine/secrets
 cd switch-operator-engine
 curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.0.4/docker-compose.yml
 curl -fsSL https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.0.4/operator-engine.env.example -o .env
+curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.0.4/Switch-Operator-Engine-1.0.4-Docker-amd64.tar.gz
+curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.0.4/SHA256SUMS-1.0.4.txt
+grep 'Switch-Operator-Engine-1.0.4-Docker-amd64.tar.gz$' SHA256SUMS-1.0.4.txt | sha256sum -c -
+docker load -i Switch-Operator-Engine-1.0.4-Docker-amd64.tar.gz
+rm Switch-Operator-Engine-1.0.4-Docker-amd64.tar.gz
 chmod 700 secrets
 ```
 
@@ -56,11 +61,10 @@ arguments.
 
 ## 3. Encrypt the operator signer
 
-Pull the image, then run setup. The private-key prompt does not echo and the key
-is encrypted before anything is written to the persistent volume.
+After loading the release image, run setup. The private-key prompt does not echo
+and the key is encrypted before anything is written to the persistent volume.
 
 ```bash
-docker compose pull
 docker compose run --rm operator setup --network pulsechain
 ```
 
@@ -127,9 +131,10 @@ docker run --rm -v switch-operator-engine-data:/data -v "$PWD":/backup alpine \
 docker compose start
 ```
 
-Verify the published image identity:
+Verify the loaded image version and platform:
 
 ```bash
-docker image inspect ghcr.io/buildthetech/switch-operator-engine:1.0.4 \
-  --format '{{index .RepoDigests 0}}'
+docker run --rm switch-operator-engine:1.0.4 version
+docker image inspect switch-operator-engine:1.0.4 \
+  --format '{{.Os}}/{{.Architecture}} {{.Config.User}}'
 ```

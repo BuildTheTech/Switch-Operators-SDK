@@ -22,7 +22,7 @@ a protected headless Docker image for x86-64 Linux servers. The Docker image
 can operate PulseChain, Robinhood Chain, or both networks simultaneously.
 
 - [Docker/VPS setup guide](DOCKER.md)
-- Image: `ghcr.io/buildthetech/switch-operator-engine:1.0.4`
+- Image archive: `Switch-Operator-Engine-1.0.4-Docker-amd64.tar.gz`
 - [Operator Engine 1.0.4 release](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.0.4)
 
 The image contains version-pinned protected runtime bytecode, not the Operator

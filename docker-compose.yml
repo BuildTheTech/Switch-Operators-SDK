@@ -1,6 +1,7 @@
 services:
   operator:
-    image: ghcr.io/buildthetech/switch-operator-engine:1.0.4
+    image: switch-operator-engine:1.0.4
+    pull_policy: never
     container_name: switch-operator-engine
     restart: unless-stopped
     init: true
