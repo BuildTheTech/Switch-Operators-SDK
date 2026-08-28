@@ -15,6 +15,19 @@ Both guides use the same structure and execution model. Their contract
 addresses, native currency, routing venues, token data, fee configuration, and
 RPC requirements are chain-specific.
 
+## Operator Engine
+
+Switch Operator Engine `1.0.4` is available as both a desktop application and
+a protected headless Docker image for x86-64 Linux servers. The Docker image
+can operate PulseChain, Robinhood Chain, or both networks simultaneously.
+
+- [Docker/VPS setup guide](DOCKER.md)
+- Image: `ghcr.io/buildthetech/switch-operator-engine:1.0.4`
+- [Operator Engine 1.0.4 release](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.0.4)
+
+The image contains version-pinned protected runtime bytecode, not the Operator
+Engine TypeScript source tree, source maps, declarations, or build scripts.
+
 ## Shared rules
 
 - Include `network=pulsechain` or `network=robinhood` on every orderbook and

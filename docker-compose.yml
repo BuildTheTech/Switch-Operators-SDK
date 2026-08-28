@@ -1,0 +1,42 @@
+services:
+  operator:
+    image: ghcr.io/buildthetech/switch-operator-engine:1.0.4
+    container_name: switch-operator-engine
+    restart: unless-stopped
+    init: true
+    read_only: true
+    environment:
+      SWITCH_NETWORKS: ${SWITCH_NETWORKS:-pulsechain}
+      PULSECHAIN_RPC_MODE: ${PULSECHAIN_RPC_MODE:-public}
+      PULSECHAIN_RPC_URLS: ${PULSECHAIN_RPC_URLS:-}
+      PULSECHAIN_TX_RPC_URL: ${PULSECHAIN_TX_RPC_URL:-}
+      PULSECHAIN_ADAPTERS: ${PULSECHAIN_ADAPTERS:-}
+      ROBINHOOD_RPC_MODE: ${ROBINHOOD_RPC_MODE:-public}
+      ROBINHOOD_RPC_URLS: ${ROBINHOOD_RPC_URLS:-}
+      ROBINHOOD_TX_RPC_URL: ${ROBINHOOD_TX_RPC_URL:-}
+      ROBINHOOD_ADAPTERS: ${ROBINHOOD_ADAPTERS:-}
+      SWITCH_KEYSTORE_PASSWORD_FILE: /run/secrets/operator_password
+      SWITCH_HEALTH_HOST: 127.0.0.1
+      SWITCH_HEALTH_PORT: 8787
+    secrets:
+      - operator_password
+    volumes:
+      - operator-data:/data
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m,mode=1777
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    stop_grace_period: 30s
+
+secrets:
+  operator_password:
+    file: ./secrets/operator_password
+
+volumes:
+  operator-data:
+    name: switch-operator-engine-data
