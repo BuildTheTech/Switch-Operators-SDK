@@ -1,7 +1,7 @@
-# Switch Operator Engine 1.0.6 - Docker/VPS setup
+# Switch Operator Engine 1.1.0 - Docker/VPS setup
 
 The protected headless image runs the same current-contract-only PulseChain
-and Robinhood operator workers as Operator Engine `1.0.6`. It can run either
+and Robinhood operator workers as Operator Engine `1.1.0`. It can run either
 chain or both simultaneously.
 
 The image contains protected, Node/V8-version-pinned proprietary worker
@@ -27,13 +27,13 @@ analyze.
 ```bash
 mkdir -p switch-operator-engine/secrets
 cd switch-operator-engine
-curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.0.6/docker-compose.yml
-curl -fsSL https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.0.6/operator-engine.env.example -o .env
-curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.0.6/Switch-Operator-Engine-1.0.6-Docker-amd64.tar.gz
-curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.0.6/SHA256SUMS-1.0.6.txt
-grep 'Switch-Operator-Engine-1.0.6-Docker-amd64.tar.gz$' SHA256SUMS-1.0.6.txt | sha256sum -c -
-docker load -i Switch-Operator-Engine-1.0.6-Docker-amd64.tar.gz
-rm Switch-Operator-Engine-1.0.6-Docker-amd64.tar.gz
+curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.1.0/docker-compose.yml
+curl -fsSL https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.1.0/operator-engine.env.example -o .env
+curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.1.0/Switch-Operator-Engine-1.1.0-Docker-amd64.tar.gz
+curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.1.0/SHA256SUMS-1.1.0.txt
+grep 'Switch-Operator-Engine-1.1.0-Docker-amd64.tar.gz$' SHA256SUMS-1.1.0.txt | sha256sum -c -
+docker load -i Switch-Operator-Engine-1.1.0-Docker-amd64.tar.gz
+rm Switch-Operator-Engine-1.1.0-Docker-amd64.tar.gz
 chmod 700 secrets
 ```
 
@@ -42,7 +42,7 @@ Edit `.env`. `SWITCH_NETWORKS=pulsechain` runs PulseChain only. Use
 `SWITCH_NETWORKS=pulsechain,robinhood` for both.
 
 Leaving the RPC URL fields empty uses the curated public RPC pools built into
-Operator Engine `1.0.6`. A private node running on the VPS host can be addressed
+Operator Engine `1.1.0`. A private node running on the VPS host can be addressed
 as `http://host.docker.internal:PORT`.
 
 ## 2. Create the keystore password secret
@@ -122,7 +122,7 @@ the ready state.
   Detailed routing internals and source paths remain suppressed.
 - The runtime checks the on-chain operator role and adapter entitlements before
   launching. It executes only the current Limit Order and PLS Flow deployments
-  embedded in Operator Engine `1.0.6`.
+  embedded in Operator Engine `1.1.0`.
 - Back up both the Docker volume and password secret. Keep them separately.
 
 Create an encrypted-volume backup:
@@ -137,7 +137,7 @@ docker compose start
 Verify the loaded image version and platform:
 
 ```bash
-docker run --rm switch-operator-engine:1.0.6 version
-docker image inspect switch-operator-engine:1.0.6 \
+docker run --rm switch-operator-engine:1.1.0 version
+docker image inspect switch-operator-engine:1.1.0 \
   --format '{{.Os}}/{{.Architecture}} {{.Config.User}}'
 ```

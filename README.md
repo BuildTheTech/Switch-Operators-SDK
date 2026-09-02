@@ -17,13 +17,13 @@ RPC requirements are chain-specific.
 
 ## Operator Engine
 
-Switch Operator Engine `1.0.6` is available as both a desktop application and
+Switch Operator Engine `1.1.0` is available as both a desktop application and
 a protected headless Docker image for x86-64 Linux servers. The Docker image
 can operate PulseChain, Robinhood Chain, or both networks simultaneously.
 
 - [Docker/VPS setup guide](DOCKER.md)
-- Image archive: `Switch-Operator-Engine-1.0.6-Docker-amd64.tar.gz`
-- [Operator Engine 1.0.6 release](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.0.6)
+- Image archive: `Switch-Operator-Engine-1.1.0-Docker-amd64.tar.gz`
+- [Operator Engine 1.1.0 release](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.1.0)
 
 The image contains version-pinned protected runtime bytecode, not the Operator
 Engine TypeScript source tree, source maps, declarations, or build scripts.
