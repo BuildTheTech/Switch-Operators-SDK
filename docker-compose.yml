@@ -1,6 +1,6 @@
 services:
   operator:
-    image: switch-operator-engine:1.1.1
+    image: switch-operator-engine:1.1.2
     pull_policy: never
     container_name: switch-operator-engine
     restart: unless-stopped
