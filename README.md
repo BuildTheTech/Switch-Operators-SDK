@@ -17,21 +17,23 @@ RPC requirements are chain-specific.
 
 ## Operator Engine
 
-Switch Operator Engine `1.1.2` is available as both a desktop application and
+Switch Operator Engine `1.1.3` is available as both a desktop application and
 a protected headless Docker image for x86-64 Linux servers. The Docker image
 can operate PulseChain, Robinhood Chain, or both networks simultaneously.
 
 - [Docker/VPS setup guide](DOCKER.md)
-- Image archive: `Switch-Operator-Engine-1.1.2-Docker-amd64.tar.gz`
-- [Operator Engine 1.1.2 release and checksums](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.1.2)
+- Image archive: `Switch-Operator-Engine-1.1.3-Docker-amd64.tar.gz`
+- [Operator Engine 1.1.3 release and checksums](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.1.3)
 
 Desktop downloads cover Windows x64, macOS Apple Silicon and Intel, and Linux
-x86-64 (AppImage/Debian). Version 1.1.2 improves Robinhood quote CPU performance,
-contains V4 WebSocket failures, and retries read-only access verification after
-RPC rate limits. Fillable status includes the configured gas/profit checks.
-V4 routing and exact execution verification remain enabled. Experimental RPC
-load balancing and queue batching remain opt-in; public throttling can still
-cause deferrals. An unavailable access check is not a request to purchase again.
+x86-64 (AppImage/Debian). Version 1.1.3 hardens operator excess checks on both
+chains: serialized route amounts, protocol fees, known taxes and the full padded
+gas budget must leave the configured net excess before submission or replacement.
+The setting is capped at 5%. These are client safeguards, not an on-chain
+minimum-payout guarantee; conditions can change before mining and reverted
+transactions still cost gas. Robinhood gains endpoint-specific backoff/limits,
+safer planning reuse and faster first-screen scheduling. Fresh exact verification,
+1.1.2 access-check/WebSocket protections and quiet public logging remain intact.
 
 Windows supports signed in-app updates. Starting with 1.1.1, macOS and Linux
 also check the signed feed and notify users about releases, with a link to
@@ -40,7 +42,7 @@ official downloads for manual installation. Older Mac/Linux clients, including
 installing, verify the download checksum, and retain existing application data.
 macOS builds are ad-hoc signed, not Apple-notarized.
 
-[Version 1.1.1 remains available for rollback](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.1.1).
+[Version 1.1.2 remains available for rollback](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.1.2).
 Back up settings, encrypted wallet storage and databases before changing versions;
 never run two versions against the same operator wallet simultaneously.
 
