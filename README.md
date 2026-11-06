@@ -58,8 +58,7 @@ Engine TypeScript source tree, source maps, declarations, or build scripts.
   Historical arrays are for cancellation, indexing, and trusted drain tooling.
 - After applying that allowlist, fill, simulate, and check nonces against each
   order's own `limitOrderContract`.
-- Read the current fee and protection configuration on-chain. Both networks
-  ordinary limit orders currently use a 30 bps fee, a 5% route-surplus cap, and a
+- Read the current fee and protection configuration on-chain. Ordinary limit orders on both networks currently use a 30 bps fee, a 5% route-surplus cap, and a
   fail-closed 95%-of-market direct-fill floor.
 - Treat all route and tax information as time-sensitive and simulate the exact
   transaction immediately before broadcast.

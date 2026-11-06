@@ -151,16 +151,16 @@ docker image inspect switch-operator-engine:1.1.5 \
 Do not repeat first-time setup or replace your `.env` or password secret.
 Back up the existing named volume and secret first, using the backup procedure
 above. Download the 1.1.5 Docker archive and checksum file, verify the archive,
-and load it with `docker load`. Keep the 1.1.2 image available locally.
+and load it with `docker load`. Keep the 1.1.4 image available locally.
 
 Stop the operator with `docker compose stop`. In the existing Compose file,
-change only the image from `switch-operator-engine:1.1.2` to
+change only the image from `switch-operator-engine:1.1.4` to
 `switch-operator-engine:1.1.5`, then run `docker compose up -d` and inspect
 `docker compose logs -f operator`. Keep the same `switch-operator-engine-data`
 volume and password secret. Never use `docker compose down -v` when upgrading.
 
 To roll back, stop the operator, change the image back to
-`switch-operator-engine:1.1.2`, and run `docker compose up -d`. Version 1.1.2 and
+`switch-operator-engine:1.1.4`, and run `docker compose up -d`. Version 1.1.4 and
 its checksums remain on the previous release page. This patch does not require
 a database or wallet reset; never run old and new instances simultaneously
 against the same wallet or volume. Docker upgrades are manual and do not use
