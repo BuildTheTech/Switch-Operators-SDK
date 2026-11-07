@@ -1,7 +1,7 @@
-# Switch Operator Engine 1.1.5 - Docker/VPS setup
+# Switch Operator Engine 1.1.4 - Docker/VPS setup
 
 The protected headless image runs the same current-contract-only PulseChain
-and Robinhood operator workers as Operator Engine `1.1.5`. It can run either
+and Robinhood operator workers as Operator Engine `1.1.4`. It can run either
 chain or both simultaneously.
 
 The image contains protected, Node/V8-version-pinned proprietary worker
@@ -13,10 +13,6 @@ run from V8 bytecode; it contains database plumbing rather than Switch routing
 source. Bytecode materially raises the reverse-engineering cost, but no
 executable distributed to an untrusted machine can be made impossible to
 analyze.
-
-## Gasless support in 1.1.5
-
-The same operators now watch the dedicated GaslessSwitch contracts as well as ordinary limit orders. Gasless swaps have their own net-profit setting, defaulting to 0 bps while requiring strictly positive earnings after the full gas budget. Their total payout is capped on-chain at 0.05%, including gas. A bounded priority queue re-quotes short-lived orders during long limit-order cycles, until filled or expired. No new signer setup is needed for an already configured operator.
 
 ## Requirements
 
@@ -31,13 +27,13 @@ The same operators now watch the dedicated GaslessSwitch contracts as well as or
 ```bash
 mkdir -p switch-operator-engine/secrets
 cd switch-operator-engine
-curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.1.5/docker-compose.yml
-curl -fsSL https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.1.5/operator-engine.env.example -o .env
-curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.1.5/Switch-Operator-Engine-1.1.5-Docker-amd64.tar.gz
-curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.1.5/SHA256SUMS-1.1.5.txt
-grep 'Switch-Operator-Engine-1.1.5-Docker-amd64.tar.gz$' SHA256SUMS-1.1.5.txt | sha256sum -c -
-docker load -i Switch-Operator-Engine-1.1.5-Docker-amd64.tar.gz
-rm Switch-Operator-Engine-1.1.5-Docker-amd64.tar.gz
+curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.1.4/docker-compose.yml
+curl -fsSL https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.1.4/operator-engine.env.example -o .env
+curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.1.4/Switch-Operator-Engine-1.1.4-Docker-amd64.tar.gz
+curl -fsSLO https://github.com/BuildTheTech/Switch-Operators-SDK/releases/download/operator-engine-v1.1.4/SHA256SUMS-1.1.4.txt
+grep 'Switch-Operator-Engine-1.1.4-Docker-amd64.tar.gz$' SHA256SUMS-1.1.4.txt | sha256sum -c -
+docker load -i Switch-Operator-Engine-1.1.4-Docker-amd64.tar.gz
+rm Switch-Operator-Engine-1.1.4-Docker-amd64.tar.gz
 chmod 700 secrets
 ```
 
@@ -46,7 +42,7 @@ Edit `.env`. `SWITCH_NETWORKS=pulsechain` runs PulseChain only. Use
 `SWITCH_NETWORKS=pulsechain,robinhood` for both.
 
 Leaving the RPC URL fields empty uses the curated public RPC pools built into
-Operator Engine `1.1.5`. A private node running on the VPS host can be addressed
+Operator Engine `1.1.4`. A private node running on the VPS host can be addressed
 as `http://host.docker.internal:PORT`.
 
 ## 2. Create the keystore password secret
@@ -126,7 +122,7 @@ the ready state.
   Detailed routing internals and source paths remain suppressed.
 - The runtime checks the on-chain operator role and adapter entitlements before
   launching. It executes only the current Limit Order and PLS Flow deployments
-  embedded in Operator Engine `1.1.5`.
+  embedded in Operator Engine `1.1.4`.
 - Back up both the Docker volume and password secret. Keep them separately.
 
 Create an encrypted-volume backup:
@@ -141,8 +137,8 @@ docker compose start
 Verify the loaded image version and platform:
 
 ```bash
-docker run --rm switch-operator-engine:1.1.5 version
-docker image inspect switch-operator-engine:1.1.5 \
+docker run --rm switch-operator-engine:1.1.4 version
+docker image inspect switch-operator-engine:1.1.4 \
   --format '{{.Os}}/{{.Architecture}} {{.Config.User}}'
 ```
 
@@ -150,18 +146,16 @@ docker image inspect switch-operator-engine:1.1.5 \
 
 Do not repeat first-time setup or replace your `.env` or password secret.
 Back up the existing named volume and secret first, using the backup procedure
-above. Download the 1.1.5 Docker archive and checksum file, verify the archive,
-and load it with `docker load`. Keep the 1.1.4 image available locally.
+above. Download the 1.1.4 Docker archive and checksum file, verify the archive,
+and load it with `docker load`. Keep the verified 1.1.4 archive available locally.
 
 Stop the operator with `docker compose stop`. In the existing Compose file,
-change only the image from `switch-operator-engine:1.1.4` to
-`switch-operator-engine:1.1.5`, then run `docker compose up -d` and inspect
+set the image to `switch-operator-engine:1.1.4`, then run `docker compose up -d` and inspect
 `docker compose logs -f operator`. Keep the same `switch-operator-engine-data`
 volume and password secret. Never use `docker compose down -v` when upgrading.
 
-To roll back, stop the operator, change the image back to
-`switch-operator-engine:1.1.4`, and run `docker compose up -d`. Version 1.1.4 and
-its checksums remain on the previous release page. This patch does not require
+To recover the current stable version, stop the operator, load the verified
+1.1.4 archive, retain that image tag, and run `docker compose up -d`. This does not require
 a database or wallet reset; never run old and new instances simultaneously
 against the same wallet or volume. Docker upgrades are manual and do not use
 the desktop update feed.

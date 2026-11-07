@@ -17,16 +17,16 @@ RPC requirements are chain-specific.
 
 ## Operator Engine
 
-Switch Operator Engine `1.1.5` is available as both a desktop application and
+Switch Operator Engine `1.1.4` is available as both a desktop application and
 a protected headless Docker image for x86-64 Linux servers. The Docker image
 can operate PulseChain, Robinhood Chain, or both networks simultaneously.
 
 - [Docker/VPS setup guide](DOCKER.md)
-- Image archive: `Switch-Operator-Engine-1.1.5-Docker-amd64.tar.gz`
-- [Operator Engine 1.1.5 release and checksums](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.1.5)
+- Image archive: `Switch-Operator-Engine-1.1.4-Docker-amd64.tar.gz`
+- [Operator Engine 1.1.4 release and checksums](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.1.4)
 
 Desktop downloads cover Windows x64, macOS Apple Silicon and Intel, and Linux
-x86-64 (AppImage/Debian). Version 1.1.5 retains patched Electron 44.10.2, bundled
+x86-64 (AppImage/Debian). Version 1.1.4 updates Electron to 44.10.2, bundled
 Node.js to 24.22.2, and the headless Node.js base to 24.22.2, including the
 October Brotli security fix. It patches dependencies and enables the backend
 CPU serialization optimization for PulseChain operator quotes. Quote and
@@ -40,11 +40,9 @@ official downloads for manual installation. Older Mac/Linux clients, including
 installing, verify the download checksum, and retain existing application data.
 macOS builds are ad-hoc signed, not Apple-notarized.
 
-[Version 1.1.4 remains available for rollback](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.1.4).
+Version 1.1.4 is the current stable release. Keep its verified installer or image archive for recovery.
 Back up settings, encrypted wallet storage and databases before changing versions;
 never run two versions against the same operator wallet simultaneously.
-
-Version 1.1.5 adds dedicated GaslessSwitch orders on PulseChain and Robinhood. Gasless swaps use a separate minimum net profit setting (default 0 bps, requiring strictly positive earnings after gas) and a bounded priority retry queue while ordinary limit-order sweeps continue. The total gasless operator payout remains capped on-chain at 0.05%, including gas. Ordinary limit-order profit settings remain separate.
 
 The image contains version-pinned protected runtime bytecode, not the Operator
 Engine TypeScript source tree, source maps, declarations, or build scripts.
@@ -54,11 +52,12 @@ Engine TypeScript source tree, source maps, declarations, or build scripts.
 - Include `network=pulsechain` or `network=robinhood` on every orderbook and
   config request.
 - Fetch `/limit-orders/config` at startup. Public operators must quote and fill
-  only the response's current `limitOrderContract`, `plsFlowContract`, and recognized `gaslessContract` when present.
+  only the response's current `limitOrderContract` and `plsFlowContract`.
   Historical arrays are for cancellation, indexing, and trusted drain tooling.
 - After applying that allowlist, fill, simulate, and check nonces against each
   order's own `limitOrderContract`.
-- Read the current fee and protection configuration on-chain. Ordinary limit orders on both networks currently use a 30 bps fee, a 5% route-surplus cap, and a
+- Read the current fee and protection configuration on-chain. Both networks
+  currently use a 30 bps limit-order fee, a 5% route-surplus cap, and a
   fail-closed 95%-of-market direct-fill floor.
 - Treat all route and tax information as time-sensitive and simulate the exact
   transaction immediately before broadcast.
@@ -86,12 +85,3 @@ integration documentation; it is not a separate npm package.
 ## License
 
 MIT
-
-## Gasless swap orders
-
-GaslessSwitch uses the same signed order tuple with a distinct EIP-712 domain, **GaslessSwitch / 1**, bound to chain and contract. Users approve GaslessSwitch itself. Read its fee and operator cap on-chain: a 0.1% protocol fee and a maximum **total** operator payout of 0.05% of actual output after the protocol fee, including gas. Surplus beyond that cap goes to the signed recipient; an operator cannot change the signed minimum or collect the full slippage tolerance.
-
-- PulseChain: `0xC28C70527740A85E98f7C8f800694f05c43814C5`
-- Robinhood: `0xC9daFAA2ef5482Eab0014fAc7c44E7F8C9005A3F`
-
-Identify these orders by their contract, not a short deadline or maker address. Revisit them while valid instead of waiting for a complete long-order sweep. Engine 1.1.5 allows at most two gasless evaluations at once, uses eight seconds between completed attempts during long cycles, and retains transaction serialization, pending-fill deduplication and full-gas checks. Quote/RPC time and the ordinary cycle interval are additional. Stop routing filled/cancelled or expired signatures. Do not submit a loss-making fill simply because its configured minimum is zero.
