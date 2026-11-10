@@ -17,21 +17,24 @@ RPC requirements are chain-specific.
 
 ## Operator Engine
 
-Switch Operator Engine `1.1.4` is available as both a desktop application and
+Switch Operator Engine `1.1.6` is available as both a desktop application and
 a protected headless Docker image for x86-64 Linux servers. The Docker image
 can operate PulseChain, Robinhood Chain, or both networks simultaneously.
 
 - [Docker/VPS setup guide](DOCKER.md)
-- Image archive: `Switch-Operator-Engine-1.1.4-Docker-amd64.tar.gz`
-- [Operator Engine 1.1.4 release and checksums](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.1.4)
+- Image archive: `Switch-Operator-Engine-1.1.6-Docker-amd64.tar.gz`
+- [Operator Engine 1.1.6 release and checksums](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.1.6)
 
 Desktop downloads cover Windows x64, macOS Apple Silicon and Intel, and Linux
-x86-64 (AppImage/Debian). Version 1.1.4 updates Electron to 44.10.2, bundled
-Node.js to 24.22.2, and the headless Node.js base to 24.22.2, including the
-October Brotli security fix. It patches dependencies and enables the backend
-CPU serialization optimization for PulseChain operator quotes. Quote and
-transaction bytes, route coverage, RPC limits, and 1.1.3 payout checks are
-preserved. End-to-end quote time still depends on the pair, routing work, and RPCs.
+x86-64 (AppImage/Debian). Version 1.1.6 adds GaslessSwitch V2 on both chains,
+separate gasless profit settings in the desktop app, independent gasless discovery,
+priority retries, tax-aware settlement checks and visible gasless execution activity.
+The 0.05% operator payout cap includes gas; ordinary limit-order profit settings
+remain separate. It retains the patched Electron 44.10.2 / Node.js 24.22.2 runtimes.
+
+See [1.1.6 changes and upgrade instructions](OPERATOR_ENGINE_1.1.6.md).
+Public RPCs, prices and competition can still prevent a fill; a successful API
+eligibility preview is not a fill guarantee.
 
 Windows supports signed in-app updates. Starting with 1.1.1, macOS and Linux
 also check the signed feed and notify users about releases, with a link to
@@ -40,7 +43,7 @@ official downloads for manual installation. Older Mac/Linux clients, including
 installing, verify the download checksum, and retain existing application data.
 macOS builds are ad-hoc signed, not Apple-notarized.
 
-Version 1.1.4 is the current stable release. Keep its verified installer or image archive for recovery.
+Version 1.1.6 is the current stable release. Version 1.1.4 remains available for rollback; withdrawn 1.1.5 stays unpublished.
 Back up settings, encrypted wallet storage and databases before changing versions;
 never run two versions against the same operator wallet simultaneously.
 
@@ -52,12 +55,14 @@ Engine TypeScript source tree, source maps, declarations, or build scripts.
 - Include `network=pulsechain` or `network=robinhood` on every orderbook and
   config request.
 - Fetch `/limit-orders/config` at startup. Public operators must quote and fill
-  only the response's current `limitOrderContract` and `plsFlowContract`.
+  ordinary orders only on the response's current `limitOrderContract` and `plsFlowContract`.
+  Operator Engine 1.1.6 additionally pins the GaslessSwitch contracts listed in its
+  [release guide](OPERATOR_ENGINE_1.1.6.md); their fee and payout rules differ.
   Historical arrays are for cancellation, indexing, and trusted drain tooling.
 - After applying that allowlist, fill, simulate, and check nonces against each
   order's own `limitOrderContract`.
 - Read the current fee and protection configuration on-chain. Both networks
-  currently use a 30 bps limit-order fee, a 5% route-surplus cap, and a
+  use a 30 bps fee for ordinary limit orders, a 5% route-surplus cap, and a
   fail-closed 95%-of-market direct-fill floor.
 - Treat all route and tax information as time-sensitive and simulate the exact
   transaction immediately before broadcast.
