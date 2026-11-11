@@ -1,6 +1,13 @@
 # Switch Operators SDK
 
-Integration guides for operators (fillers) of Switch Limit Orders.
+Integration guides for operators (fillers) of Switch Limit Orders and GaslessSwitch swaps.
+
+**Unreleased local documentation:** the new [GaslessSwitch V2 guide](GASLESS.md)
+covers the dedicated gasless contracts, separate payout policy, tax support,
+priority retry scheduling, and the [quote API's eligibility response](GASLESS.md#api-eligibility-response).
+This work does not publish Operator Engine
+1.1.5 or a Docker image. The public download instructions below remain on 1.1.4;
+editing a guide or `.env` cannot add gasless support to that older binary.
 
 Operators monitor the Switch orderbook for signed limit orders, evaluate
 profitability, and fill orders on-chain. Choose the guide for the target
@@ -51,14 +58,16 @@ Engine TypeScript source tree, source maps, declarations, or build scripts.
 
 - Include `network=pulsechain` or `network=robinhood` on every orderbook and
   config request.
-- Fetch `/limit-orders/config` at startup. Public operators must quote and fill
-  only the response's current `limitOrderContract` and `plsFlowContract`.
+- Fetch `/limit-orders/config` at startup. Gasless-aware public operators may
+  fill the current `limitOrderContract` and separately validated `gaslessContract`;
+  accept native-flow makers only from the current `plsFlowContract`.
   Historical arrays are for cancellation, indexing, and trusted drain tooling.
 - After applying that allowlist, fill, simulate, and check nonces against each
   order's own `limitOrderContract`.
-- Read the current fee and protection configuration on-chain. Both networks
-  currently use a 30 bps limit-order fee, a 5% route-surplus cap, and a
-  fail-closed 95%-of-market direct-fill floor.
+- Read each target's fee and protection configuration on-chain. Ordinary limit
+  orders use a 30 bps fee, 5% route-surplus cap, and a 95%-of-market direct-fill
+  floor. GaslessSwitch V2 uses a 10 bps fee, a 5 bps total operator payout cap
+  including gas, and route fills only. Do not apply LO profit thresholds to it.
 - Treat all route and tax information as time-sensitive and simulate the exact
   transaction immediately before broadcast.
 
