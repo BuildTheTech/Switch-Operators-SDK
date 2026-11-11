@@ -17,22 +17,27 @@ RPC requirements are chain-specific.
 
 ## Operator Engine
 
-Switch Operator Engine `1.1.7` is available as both a desktop application and
+Switch Operator Engine `1.1.8` is available as both a desktop application and
 a protected headless Docker image for x86-64 Linux servers. The Docker image
 can operate PulseChain, Robinhood Chain, or both networks simultaneously.
 
 - [Docker/VPS setup guide](DOCKER.md)
-- Image archive: `Switch-Operator-Engine-1.1.7-Docker-amd64.tar.gz`
-- [Operator Engine 1.1.7 release and checksums](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.1.7)
+- Image archive: `Switch-Operator-Engine-1.1.8-Docker-amd64.tar.gz`
+- [Operator Engine 1.1.8 release and checksums](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.1.8)
 
 Desktop downloads cover Windows x64, macOS Apple Silicon and Intel, and Linux
-x86-64 (AppImage/Debian). Version 1.1.7 corrects the JoltOTC orderbook integration and retains GaslessSwitch V2 on both chains,
+x86-64 (AppImage/Debian). Version 1.1.8 removes the duplicate full route search
+for PulseChain gasless input payouts, reserves tax-check capacity for gasless
+orders on public RPCs, and suppresses stale quote/retry messages after an order
+closes. Exact settlement, signed minimum output and gas checks remain required.
+It retains the corrected JoltOTC integration and GaslessSwitch V2 on both chains,
 separate gasless profit settings in the desktop app, independent gasless discovery,
 priority retries, tax-aware settlement checks and visible gasless execution activity.
 The 0.05% operator payout cap includes gas; ordinary limit-order profit settings
 remain separate. It retains the patched Electron 44.10.2 / Node.js 24.22.2 runtimes.
 
-See [1.1.7 changes and upgrade instructions](OPERATOR_ENGINE_1.1.7.md).
+See the [1.1.8 changes and downloads](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.1.8)
+and [Docker upgrade instructions](DOCKER.md#upgrade-an-existing-installation-and-retain-rollback).
 Public RPCs, prices and competition can still prevent a fill; a successful API
 eligibility preview is not a fill guarantee.
 
@@ -43,7 +48,7 @@ official downloads for manual installation. Older Mac/Linux clients, including
 installing, verify the download checksum, and retain existing application data.
 macOS builds are ad-hoc signed, not Apple-notarized.
 
-Version 1.1.7 is the current stable release. Version 1.1.4 remains available for rollback; withdrawn 1.1.5 stays unpublished.
+Version 1.1.8 is the current stable release. Version 1.1.7 remains available for rollback; withdrawn 1.1.5 stays unpublished.
 Back up settings, encrypted wallet storage and databases before changing versions;
 never run two versions against the same operator wallet simultaneously.
 
