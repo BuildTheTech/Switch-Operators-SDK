@@ -26,10 +26,11 @@ can operate PulseChain, Robinhood Chain, or both networks simultaneously.
 - [Operator Engine 1.1.8 release and checksums](https://github.com/BuildTheTech/Switch-Operators-SDK/releases/tag/operator-engine-v1.1.8)
 
 Desktop downloads cover Windows x64, macOS Apple Silicon and Intel, and Linux
-x86-64 (AppImage/Debian). Version 1.1.8 removes the duplicate full route search
+x86-64 (AppImage/Debian). Version 1.1.8 removes duplicate pool searches
 for PulseChain gasless input payouts, reserves tax-check capacity for gasless
 orders on public RPCs, and suppresses stale quote/retry messages after an order
-closes. Exact settlement, signed minimum output and gas checks remain required.
+closes. Fixed OTC fills retain amount-specific sizing. Exact settlement, signed
+minimum output and gas checks remain required.
 It retains the corrected JoltOTC integration and GaslessSwitch V2 on both chains,
 separate gasless profit settings in the desktop app, independent gasless discovery,
 priority retries, tax-aware settlement checks and visible gasless execution activity.
