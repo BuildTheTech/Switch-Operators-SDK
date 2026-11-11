@@ -1,6 +1,12 @@
 # Switch Operators SDK
 
-Integration guides for operators (fillers) of Switch Limit Orders.
+Integration guides for operators (fillers) of Switch Limit Orders and GaslessSwitch swaps.
+
+The [GaslessSwitch V2 guide](GASLESS.md)
+covers the dedicated gasless contracts, separate payout policy, tax support,
+priority retry scheduling, and the [quote API's eligibility response](GASLESS.md#api-eligibility-response).
+Use the released Operator Engine 1.1.8 desktop or Docker runtime for this flow.
+Older 1.1.4 binaries need a runtime upgrade; withdrawn 1.1.5 remains unpublished.
 
 Operators monitor the Switch orderbook for signed limit orders, evaluate
 profitability, and fill orders on-chain. Choose the guide for the target
@@ -60,16 +66,19 @@ Engine TypeScript source tree, source maps, declarations, or build scripts.
 
 - Include `network=pulsechain` or `network=robinhood` on every orderbook and
   config request.
-- Fetch `/limit-orders/config` at startup. Public operators must quote and fill
-  ordinary orders only on the response's current `limitOrderContract` and `plsFlowContract`.
-  Operator Engine 1.1.7 additionally pins the GaslessSwitch contracts listed in its
-  [release guide](OPERATOR_ENGINE_1.1.7.md); their fee and payout rules differ.
+- Fetch `/limit-orders/config` at startup. Gasless-aware public operators may
+  fill the current `limitOrderContract` and separately validated `gaslessContract`;
+  accept native-flow makers only from the current `plsFlowContract`.
+  Operator Engine 1.1.8 retains the pinned GaslessSwitch deployments listed in
+  the [release guide](OPERATOR_ENGINE_1.1.7.md#gasless-support-retained-from-116).
+  Validate each target against its trusted network deployment and on-chain rules.
   Historical arrays are for cancellation, indexing, and trusted drain tooling.
 - After applying that allowlist, fill, simulate, and check nonces against each
   order's own `limitOrderContract`.
-- Read the current fee and protection configuration on-chain. Both networks
-  use a 30 bps fee for ordinary limit orders, a 5% route-surplus cap, and a
-  fail-closed 95%-of-market direct-fill floor.
+- Read each target's fee and protection configuration on-chain. Ordinary limit
+  orders use a 30 bps fee, 5% route-surplus cap, and a fail-closed 95%-of-market direct-fill
+  floor. GaslessSwitch V2 uses a 10 bps fee, a 5 bps total operator payout cap
+  including gas, and route fills only. Do not apply LO profit thresholds to it.
 - Treat all route and tax information as time-sensitive and simulate the exact
   transaction immediately before broadcast.
 
@@ -79,12 +88,14 @@ The network-aware helper package is published as
 [`@switch-win/sdk`](https://www.npmjs.com/package/@switch-win/sdk):
 
 ```bash
-npm install @switch-win/sdk@^1.2.8 ethers
+npm install @switch-win/sdk@^1.3.0 ethers
 ```
 
-Use `@switch-win/sdk` version `1.2.8` or newer for the protected deployment
-addresses, current ABIs, fee constants, and Robinhood adapter metadata. This repository contains the operator
-integration documentation; it is not a separate npm package.
+Use `@switch-win/sdk` version `1.3.0` or newer for GaslessSwitch V2 helpers,
+current ABIs, fee constants, deployment validation and API eligibility types.
+The operator helpers are exported from `@switch-win/sdk/gasless/operators`.
+This repository contains the operator integration documentation; it is not a
+separate npm package.
 
 ## Support
 

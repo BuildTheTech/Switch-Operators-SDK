@@ -1,5 +1,10 @@
 # Switch Operator Engine 1.1.8 - Docker/VPS setup
 
+GaslessSwitch V2 integration is documented in [GASLESS.md](GASLESS.md).
+This guide targets the released 1.1.8 image. Existing 1.1.4 installations need
+the runtime upgrade below; environment changes alone do not add gasless support.
+Withdrawn version 1.1.5 remains unpublished.
+
 The protected headless image runs the same current-contract-only PulseChain
 and Robinhood operator workers as Operator Engine `1.1.8`. It can run either
 chain or both simultaneously. Version 1.1.8 also watches the approved GaslessSwitch

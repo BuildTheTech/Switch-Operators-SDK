@@ -36,6 +36,10 @@ For PulseChain, use the matching [PulseChain operator guide](PULSECHAIN.md).
 
 ## Overview
 
+This guide's approval, 30 bps fee, direct-fill and profit-mode rules describe
+ordinary limit orders. Dedicated GaslessSwitch V2 swaps use different rules;
+see the [gasless operator guide](GASLESS.md), including priority retries.
+
 Switch Limit Orders use gasless EIP-712 signatures. ERC-20 tokens remain in
 the maker's wallet until an order is filled. Native ETH orders are escrowed as
 WETH by the native-flow contract and validated through ERC-1271.
@@ -85,6 +89,7 @@ ON-CHAIN
 | **SwitchRouter** | `0x8b2bBdF41C1486b3482bD0e9603d72f012EE8599` |
 | **Legacy SwitchRouterViewV2** (bound to the legacy Router) | `0xFF6b56d3F444eB5b7FA1db047F57140C84810376` |
 | **SwitchLimitOrder** | `0x1E05115387f314398bbb1A808B25308E71150396` |
+| **GaslessSwitch V2** (separate rules) | `0xc39cB531f71059fd427a63bF8a2f4b822D6B9b02` |
 | **Native ETH flow** | `0x8170a3B0e2FD2e4333E0Ca9c9414B2D3dd6aF689` |
 | **SwitchDirectFillQuoter** | `0x77b246C127c3c501Ec2836A2B53B555208b30B44` |
 | **Limit-order adapter** (index 3) | `0xb13CC4C37e1C609617C51B5dCDf8e4Ae5721Faa4` |
@@ -106,14 +111,21 @@ fill transaction target is the order's SwitchLimitOrder, never a swap quote's
 Core contract state and adapter registry verified August 25, 2026:
 
 - `SwitchLimitOrder.getFee()` returns `30` bps (`0.30%`).
-- `SwitchRouter.MIN_FEE()` returns `10` bps and `MAX_FEE()` returns `100` bps.
+- `SwitchRouter.MIN_FEE()` returns `15` bps and `MAX_FEE()` returns `100` bps.
 - The current LO is exempt from the Router's regular-swap fee, so a limit-order
   fill pays the LO's 30 bps fee rather than an additional Router fee.
 - `MAX_OPERATOR_EXCESS_BPS()` returns `500` (5%).
 - `operatorGateEnabled()` returns `true`.
 
-Public operators must evaluate and fill only orders whose
-`limitOrderContract` is the current SwitchLimitOrder above. Legacy addresses
+November 9, 2026 read-only check: the current Router's on-chain `MIN_FEE()`
+is 10 bps. The current Switch frontend explicitly requests 15 bps for Regular
+swaps. The Router floor and the application's requested fee are distinct;
+GaslessSwitch independently charges its fixed 10 bps fee.
+
+Public operators must evaluate and fill ordinary LO orders only when their
+`limitOrderContract` is the current SwitchLimitOrder above. Gasless-aware workers
+separately validate and allow the current `gaslessContract`; see [GASLESS.md](GASLESS.md).
+Legacy addresses
 remain in config for cancellation, indexing, and migration history; public
 operator access is not granted on them.
 
@@ -232,9 +244,28 @@ Current response:
 ```json
 {
   "limitOrderContract": "0x1e05115387f314398bbb1a808b25308e71150396",
+  "limitOrderRouter": "0x8b2bbdf41c1486b3482bd0e9603d72f012ee8599",
+  "orderSubmissionLimitOrderContracts": [
+    "0x1e05115387f314398bbb1a808b25308e71150396",
+    "0xc39cb531f71059fd427a63bf8a2f4b822d6b9b02"
+  ],
+  "gaslessContract": "0xc39cb531f71059fd427a63bf8a2f4b822d6b9b02",
+  "gaslessApprovalSpender": "0xc39cb531f71059fd427a63bf8a2f4b822d6b9b02",
+  "gaslessSettlementVersion": 2,
+  "gaslessTaxTokensSupported": true,
+  "gaslessProtocolFeeBps": 10,
+  "gaslessMaxOperatorPayoutBps": 5,
+  "gaslessEip712Domain": {
+    "name": "GaslessSwitch",
+    "version": "2",
+    "chainId": 4663,
+    "verifyingContract": "0xc39cb531f71059fd427a63bf8a2f4b822d6b9b02"
+  },
   "allLimitOrderContracts": [
     "0x1e05115387f314398bbb1a808b25308e71150396",
-    "0x752c50ddd3b426cae3d7a995f313ac74ac6b0230"
+    "0x752c50ddd3b426cae3d7a995f313ac74ac6b0230",
+    "0xc9dafaa2ef5482eab0014fac7c44e7f8c9005a3f",
+    "0xc39cb531f71059fd427a63bf8a2f4b822d6b9b02"
   ],
   "allPlsFlowContracts": [
     "0x8170a3b0e2fd2e4333e0ca9c9414b2d3dd6af689",
@@ -264,13 +295,17 @@ The API retains the legacy field names `plsFlowContract` and
 ### Polling Strategy
 
 - Poll every 10 to 30 seconds and page until all active orders are processed.
-- Refresh config periodically. Fill only `limitOrderContract` and accept native
+- Refresh config periodically. Fill ordinary LOs only on `limitOrderContract` and accept native
   orders only from `plsFlowContract`. Use the `all*Contracts` arrays for
   cancellation, historical indexing, and migration visibility—not as a public
   operator fill allowlist.
 - Use `/limit-orders/pairs` to focus routing work on active pairs.
 - Re-evaluate same-pair orders after a fill because pool state changed.
 - Treat API status as an index hint; confirm the nonce on-chain before sending.
+
+Gasless-aware workers separately validate and allow the current
+`gaslessContract`. Use a bounded priority discovery/retry lane rather than
+waiting for an ordinary LO scan; see [GASLESS.md](GASLESS.md).
 
 ---
 
@@ -1217,4 +1252,7 @@ MIT
 
 ---
 
-Last updated: July 19, 2026.
+Gasless API guidance updated: November 10, 2026. See the
+[API eligibility response](GASLESS.md#api-eligibility-response) for ETH gas
+budgets, payout valuation, rejection reasons and conservative frontend gating.
+Earlier ordinary limit-order guidance was last updated July 19, 2026.

@@ -11,6 +11,10 @@ strategies, fee modes, tax-token handling, and the order lifecycle.
 
 For Robinhood Chain, use the matching [Robinhood operator guide](ROBINHOOD.md).
 
+This guide's approval, 30 bps fee, direct-fill and profit-mode rules describe
+ordinary limit orders. Dedicated GaslessSwitch V2 swaps use different rules;
+see the [gasless operator guide](GASLESS.md), including priority retries.
+
 ---
 
 ## Table of Contents
@@ -44,7 +48,8 @@ As an operator, you:
 2. **Evaluate** whether an order can be filled profitably
 3. **Fill** on-chain — via DEX routing (`fillOrder`) or from your own liquidity (`directFillOrder`)
 
-The contract enforces `minAmountOut` for the maker — everything above that is yours.
+The contract enforces `minAmountOut` and caps operator-retained route surplus;
+additional improvement belongs to the maker.
 
 ---
 
@@ -85,6 +90,7 @@ The contract enforces `minAmountOut` for the maker — everything above that is 
 |---|---|
 | **SwitchRouter** | `0x2dFc8B6e13fF7F04e37Ef97006084805D65a6F19` |
 | **SwitchLimitOrder** | `0x2afBf0aB8d958a0227742F7a8BdA00c96372E4D7` |
+| **GaslessSwitch V2** (separate rules) | `0xB5bd12E009D625d8b122d0Ff9EdeD8bA2cEdeaeB` |
 | **SwitchPLSFlow** | `0x0362177FF2ad25a33a879c881a5055575C63a4cE` |
 | **SwitchDirectFillQuoter** | `0x23A95b0f69c993CFe6180a266A93F7560102e929` |
 | **Limit-order adapter** (index 17) | `0x7B9761484301a8FE4a2BA47194F7646eEF8e1cDd` |
@@ -116,8 +122,10 @@ will remain the final adapter.
 
 The addresses above are the protected public-operator deployment. Existing
 legacy orders remain indexed for history and cancellation, but public operator
-software must filter orders to the current `limitOrderContract` returned by the
-[config endpoint](#config-endpoint). Only a separately authorized trusted drain
+software must filter ordinary orders to the current `limitOrderContract` returned by the
+[config endpoint](#config-endpoint). Gasless-aware workers separately validate and
+allow the current `gaslessContract` using [GASLESS.md](GASLESS.md).
+Only a separately authorized trusted drain
 operator should process a legacy contract.
 
 ---
@@ -214,10 +222,29 @@ Response:
 ```json
 {
   "limitOrderContract": "0x2afbf0ab8d958a0227742f7a8bda00c96372e4d7",
+  "limitOrderRouter": "0x2dfc8b6e13ff7f04e37ef97006084805d65a6f19",
+  "orderSubmissionLimitOrderContracts": [
+    "0x2afbf0ab8d958a0227742f7a8bda00c96372e4d7",
+    "0xb5bd12e009d625d8b122d0ff9eded8ba2cedeaeb"
+  ],
+  "gaslessContract": "0xb5bd12e009d625d8b122d0ff9eded8ba2cedeaeb",
+  "gaslessApprovalSpender": "0xb5bd12e009d625d8b122d0ff9eded8ba2cedeaeb",
+  "gaslessSettlementVersion": 2,
+  "gaslessTaxTokensSupported": true,
+  "gaslessProtocolFeeBps": 10,
+  "gaslessMaxOperatorPayoutBps": 5,
+  "gaslessEip712Domain": {
+    "name": "GaslessSwitch",
+    "version": "2",
+    "chainId": 369,
+    "verifyingContract": "0xb5bd12e009d625d8b122d0ff9eded8ba2cedeaeb"
+  },
   "allLimitOrderContracts": [
     "0x2afbf0ab8d958a0227742f7a8bda00c96372e4d7",
     "0x8e3881bdf81fc0211383b2e576076b654f7afd86",
-    "0x0e884072a891b406c0d814907a1e2310fe5f5deb"
+    "0x0e884072a891b406c0d814907a1e2310fe5f5deb",
+    "0xc28c70527740a85e98f7c8f800694f05c43814c5",
+    "0xb5bd12e009d625d8b122d0ff9eded8ba2cedeaeb"
   ],
   "plsFlowContract": "0x0362177ff2ad25a33a879c881a5055575c63a4ce",
   "allPlsFlowContracts": [
@@ -235,7 +262,8 @@ Response:
 ```
 
 Use this at startup to initialize defaults. Public operators should accept only
-orders whose `limitOrderContract` equals `limitOrderContract` in this response.
+ordinary LO orders whose `limitOrderContract` equals `limitOrderContract` in this response.
+Gasless-aware workers also allow the separately verified `gaslessContract`.
 The `all*` arrays exist so wallets and indexers can display and cancel legacy
 orders; they are not a public fill allowlist.
 
@@ -245,6 +273,10 @@ orders; they are not a public fill allowlist.
 - Filter public-operator work to the current protected `limitOrderContract`
 - Use `/limit-orders/pairs` to focus on pairs with active orders
 - After filling, re-evaluate same-pair orders (pool state changed)
+
+Those intervals describe ordinary LO scans. Discover and retry short-lived
+gasless orders in a separate bounded priority lane; do not wait for the full
+LO scan. See [priority discovery and retries](GASLESS.md#priority-discovery-and-retries).
 
 ---
 
@@ -292,7 +324,8 @@ Orders where `maker == 0x0362177FF2ad25a33a879c881a5055575C63a4cE` are current P
 
 ### Profitability Check
 
-1. Quote the pair through your own routing (Switch does **not** provide a routing API — this is where your competitive edge comes from)
+1. Build a current route through your routing engine or a supported quote API;
+   simulate the exact LO fill rather than broadcasting a regular swap quote.
 2. Account for protocol fee (currently 30 bps, via `getFee()`)
 3. Account for tax tokens if applicable (see [Tax Token Handling](#tax-token-handling))
 4. **If input has sell tax**, first hop must use V2 adapters only (see [First-Hop Adapter Restriction](#first-hop-adapter-restriction-for-sell-tax-inputs))
@@ -1010,4 +1043,6 @@ MIT
 
 ---
 
-Last updated: March 2026.
+Gasless integration sections updated: November 10, 2026. See the
+[API eligibility response](GASLESS.md#api-eligibility-response) for gas budgets,
+native payout valuation, rejection reasons and conservative frontend gating.
